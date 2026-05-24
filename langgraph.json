@@ -1,0 +1,12 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": ["."],
+  "graphs": {
+    "house_renting_agent": "./src/agent/main.py:house_renting_agent",
+    "recommend_graph": "./src/agent/recommend.py:recommend_workflow",
+    "reserve_graph": "./src/agent/reserve.py:reserve_workflow",
+    "normal_graph": "./src/agent/normal.py:normal_workflow"
+  },
+  "env": ".env",
+  "image_distro": "wolfi"
+}
