@@ -50,7 +50,7 @@ Args:
         house_name=house_name,
         phone_number=reserve_phone,
     )
-    user_id = runtime.context.get("user_id")
+    user_id = str(runtime.context.get("user_id"))
     namespace = (user_id,)
     preferences = store.search(namespace)
     if len(preferences) == 0:
@@ -75,8 +75,7 @@ def call_create_order_tool(state: ReserveState):
     # 判断当前该调用工具还是总结结果
     if last_message and last_message.type == "tool":
         system_prompt = "请根据工具返回的订单结果，以亲切的口吻告知用户订单已成功生成，并提供订单号等信息。"
-        model_with_create_order_tool = model.bind_tools([create_order_tool])
-        ai_message = model_with_create_order_tool.invoke([SystemMessage(content=system_prompt)] + messages)
+        ai_message = model.invoke([SystemMessage(content=system_prompt)] + messages)
 
     else:
         house_name = state.get("reserve_house_name")
@@ -96,7 +95,8 @@ def call_create_order_tool(state: ReserveState):
         model_with_create_order_tool = model.bind_tools([create_order_tool], tool_choice="any")
 
         # 将构造的人类指令追加在对话最后
+        instruction_msg = HumanMessage(content=instruction)
         invoke_messages = messages + [HumanMessage(content=instruction)]
         ai_message = model_with_create_order_tool.invoke(invoke_messages)
 
-    return {"messages": ai_message}
+    return {"messages": [instruction_msg, ai_message]}

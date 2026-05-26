@@ -17,6 +17,6 @@ class Reservation(BaseModel):
 class UserPreference(BaseModel):
     """用户偏好"""
 
-    budget_min: int = Field(default=0, description="用户预算下限")
-    budget_max: int = Field(default=10000, description="用户预算上限")
+    budget_min: float = Field(default=0.00, description="用户预算下限")
+    budget_max: float = Field(default=10000.00, description="用户预算上限")
     reservations: list[Reservation]

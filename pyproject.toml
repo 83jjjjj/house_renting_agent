@@ -8,11 +8,17 @@ authors = [
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
+
+# ==================== 补全后的核心业务依赖 ====================
 dependencies = [
     "langgraph>=1.0.0",
     "python-dotenv>=1.0.1",
+    "pydantic>=2.0.0",
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",     # 必须：pipreqs 扫描出的基础工具扩展
+    "langchain-openai>=0.3.0",        # 必须：用于对接 DeepSeek / OpenAI 的 Client
+    "langchain-google-genai>=0.3.0", # 必须：pipreqs 扫描出的 Google AI 支持
 ]
-
 
 [project.optional-dependencies]
 dev = ["mypy>=1.11.1", "ruff>=0.6.1"]
@@ -26,7 +32,6 @@ packages = ["langgraph.templates.agent", "agent"]
 [tool.setuptools.package-dir]
 "langgraph.templates.agent" = "src/agent"
 "agent" = "src/agent"
-
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
@@ -44,9 +49,7 @@ lint.select = [
 lint.ignore = [
     "UP006",
     "UP007",
-    # We actually do want to import from typing_extensions
     "UP035",
-    # Relax the convention by _not_ requiring documentation for every function parameter.
     "D417",
     "E501",
 ]

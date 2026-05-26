@@ -61,7 +61,7 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     # 提取原则：有新值更新为新值，无则用旧值不动，再无则用默认值补充
     # 如果历史偏好有数据，先从中取
     demands = None
-    user_id = runtime.context.get("user_id")
+    user_id = str(runtime.context.get("user_id"))
     namespace = (user_id,)
     preferences_key = "preferences"
     history_preferences = store.get(namespace, preferences_key)
@@ -72,7 +72,7 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     # 如果用户问话里有需求信息，尝试提取
     def info_extractor(user_message: HumanMessage):
         extract_info_sys_prompt = f"从以下提供的用户消息里，提取用户的租房偏好信息，没找到就给None，不可瞎猜或无中生有。\n"
-        extracted_preferences = model.with_structured_output(Demands).invoke([
+        extracted_preferences = model.with_structured_output(Demands, method="function_calling").invoke([
             SystemMessage(content=extract_info_sys_prompt),
             user_message
         ])
@@ -105,7 +105,6 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     # print(f'{ori_pref_dict.get("budget_max", default_demands["budget_max"])}, {final_demands["budget_max"]}')
     # 预算范围只能往范围大的扩，涵盖更多房源
     updated_preferences = {
-        **final_demands,
         "budget_min": min(ori_pref_dict.get("budget_min", default_demands["budget_min"]), final_demands["budget_min"]),
         "budget_max": max(ori_pref_dict.get("budget_max", default_demands["budget_max"]), final_demands["budget_max"]),
     }
@@ -116,7 +115,7 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     })
     # 更新state
     return {
-        "user_preferences": updated_preferences,
+        "user_preferences": final_demands,
     }
 
 db_user = os.getenv("DB_USER")
@@ -163,8 +162,16 @@ get_schema = ToolNode([schema_tool], name="get_schema")
 # sql查询语句生成
 def generate_sql_query(state: RecommendState):
     # 系统提示词由千问ai生成
-    generate_sql_query_system_prompt = """
-你是一个专业的 SQL 生成引擎。请根据对话历史中提供的数据库 Schema 以及当前的用户偏好信息，生成一条标准的 MySQL SELECT 查询语句。
+    city = state["user_preferences"]["city"]
+    area = state["user_preferences"]["area"]
+    budget_min = state["user_preferences"]["budget_min"]
+    budget_max = state["user_preferences"]["budget_max"]
+    max_row = state["user_preferences"]["house_num"]
+
+    generate_sql_query_system_prompt = f"""
+你是一个专业的 SQL 生成引擎。请根据对话历史中提供的数据库 Schema 以及当前的用户租房需求信息，生成一条标准的 MySQL SELECT 查询语句，来获取符合用户需求的房源集合。
+用户提供的租房需求信息：用户想要在{city}{area}租房，预算范围为{budget_min}到{budget_max}。
+更多需求信息从历史对话获取。
 
 ### 核心指令
 1. **仅输出 SQL**：直接返回 SQL 字符串，严禁包含 Markdown 格式（如 ```sql）、注释、换行符或任何解释性文字。
@@ -178,8 +185,12 @@ def generate_sql_query(state: RecommendState):
 
 ### 目标
 输出一条语法正确、逻辑严密且可直接在 MySQL 中执行的 SELECT 语句。
+
+### 示例
+历史对话中，用户提到要在北京海淀租房，应当生成一条如下格式的sql语句：
+select [所需字段] from 房源表 where city = '北京' and region_name = '海淀' and [其余偏好条件]; 
     """
-    system_prompt = generate_sql_query_system_prompt.format(max_row=state["user_preferences"]["house_num"])
+    system_prompt = generate_sql_query_system_prompt
     model_with_query_tool = model.bind_tools([query_tool], tool_choice=True)
     # 上一条消息是获取到schema的toolmessage
     ai_message_with_tool_calls = model_with_query_tool.invoke([SystemMessage(system_prompt)] + state["messages"])
@@ -214,6 +225,6 @@ execute_query = ToolNode([query_tool], name="execute_query")
 
 # 根据sql结果输出
 def integrate_and_output(state: RecommendState):
-    system_prompt = f"根据历史消息，向用户推荐房源。"
+    system_prompt = f"根据工具查询到的房源结果集，向用户推荐房源。"
     ai_message = model.invoke([SystemMessage(content=system_prompt)] + state["messages"])
     return {"messages": ai_message}

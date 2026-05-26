@@ -24,7 +24,7 @@ class UserIntent(BaseModel):
 def determine_user_intent(state: MainState):
     user_intent_system_prompt = ("你是能通过理解语义来识别用户意图的专家。"
                                  "请根据用户消息，判别用户意图。")
-    user_intent = model.with_structured_output(UserIntent).invoke([SystemMessage(content=user_intent_system_prompt), state["messages"][-1]])
+    user_intent = model.with_structured_output(UserIntent, method="function_calling").invoke([SystemMessage(content=user_intent_system_prompt), state["messages"][-1]])
     return {"user_intent": user_intent.intent}
 
 # 查询用户历史

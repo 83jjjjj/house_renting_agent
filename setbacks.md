@@ -12,6 +12,9 @@
 运行主图全流程时踩坑：
 1. 在中断获取到用户个人信息后，llm给出no message content的ai message，因为上一条消息是推荐房源的ai message，llm不予回答 -> 补充一条human message指令即可
 2. store put时直接往list里append了reservation对象，导致获取出来不是dict -> 只需先model dump再append即可
+3. 存入memory的数据比如user_id应当强转为str，否则会报TypeError: '<' not supported between instances of 'int' and 'str'
+4. 不需要调工具时不要绑定工具，避免收集工具参数的倾向
+5. 伪造的消息也应存入messages，避免信息不全，比如中断收集到的
 
 痛点：
 1. 路由后流程中不能应对意外输出

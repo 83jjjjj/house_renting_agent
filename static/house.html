@@ -696,7 +696,7 @@
         // 创建会话
         async function createThread() {
             try {
-                const response = await fetch('http://127.0.0.1:8000/threads', {
+                const response = await fetch('http://127.0.0.1:8524/threads', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -742,7 +742,7 @@
                 if (isInterrupt) {
                     // 中断恢复模式
                     requestBody = {
-                        assistant_id: "house_agent",
+                        assistant_id: "house_renting_agent",
                         command: {
                             resume: message
                         },
@@ -755,7 +755,7 @@
                 } else {
                     // 正常模式
                     requestBody = {
-                        assistant_id: "house_agent",
+                        assistant_id: "house_renting_agent",
                         input: {
                             messages: [{"role": "human", "content": message}]
                         },
@@ -767,7 +767,7 @@
                     };
                 }
                 // 发送请求到智能体
-                const response = await fetch(`http://127.0.0.1:8000/threads/${currentThreadId}/runs/stream`, {
+                const response = await fetch(`http://127.0.0.1:8524/threads/${currentThreadId}/runs/stream`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -891,7 +891,7 @@
                                         // 去重，会存在两个事件，如下：
                                         // event: updates|reserve_graph:b9ec69e0-ce52-e030-c3d3-ccdba7555727
                                         // data: {"__interrupt__":[{"value":"请输入要预定的房源名称","id":"a47e895827b56895a8fabbed0f7ffebe"}]}
-                                        // 
+                                        //
                                         // event: updates
                                         // data: {"__interrupt__":[{"value":"请输入要预定的房源名称","id":"a47e895827b56895a8fabbed0f7ffebe"}]}
                                         interruptId = data.__interrupt__[0].id;
@@ -904,10 +904,10 @@
                                     // 提取所有消息
                                     const metadata = Object.values(data).map(v => v.metadata);
                                     if (metadata[0] && (
-                                            metadata[0].langgraph_node === 'generate_query'
-                                            || metadata[0].langgraph_node === 'call_orders'
-                                            || metadata[0].langgraph_node === 'extend_node'
-                                            || metadata[0].langgraph_node === 'get_user_preferences'
+                                            metadata[0].langgraph_node === 'integrate_and_output'
+                                            || metadata[0].langgraph_node === 'call_create_order_tool'
+                                            || metadata[0].langgraph_node === 'mine'
+                                            || metadata[0].langgraph_node === 'normal_question_and_answer'
                                         )) {
                                         startAI = true;
                                         // 创建AI消息元素
@@ -924,21 +924,31 @@
                                 else if (currentType === 'messages/partial\r') {
                                     const messageData = data[0];
                                     if (messageData.content && (messageData.type === 'ai') && startAI) {
-                                        // 更新AI消息内容
-                                        aiMessageContent = messageData.content;
-                                        // 使用 marked 解析 Markdown
-                                        aiMessageElement.innerHTML = marked.parse(aiMessageContent);
-                                        // 滚动到底部
-                                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                                        let textToDisplay = "";
+                                        // 核心修复：处理 content 可能为数组的情况
+                                        if (Array.isArray(messageData.content)) {
+                                            // 遍历数组，将所有 type 为 'text' 的部分拼接起来
+                                            textToDisplay = messageData.content
+                                                .filter(item => item.type === 'text')
+                                                .map(item => item.text)
+                                                .join('');
+                                        } else if (typeof messageData.content === 'string') {
+                                            textToDisplay = messageData.content;
+                                        }
+
+                                        // 仅在提取到文本时进行渲染，避免渲染空内容
+                                        if (textToDisplay !== "") {
+                                            aiMessageContent = textToDisplay;
+                                            aiMessageElement.innerHTML = marked.parse(aiMessageContent);
+                                            chatMessages.scrollTop = chatMessages.scrollHeight;                                    }
+                                        }
                                     }
-                                }
                             } catch (e) {
                                 console.error('解析JSON失败:', e, line);
                             }
                         }
                     }
                 }
-
             } catch (error) {
                 console.error('发送消息失败:', error);
 
