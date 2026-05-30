@@ -4,6 +4,7 @@
 
 - Unit Coverage：单元测试覆盖率，使用 `coverage.py` + `pytest-cov`。
 - Unit Pass：单元测试通过数。
+- Integration Pass：图级集成测试通过数。
 - Intent Acc：意图识别准确率。
 - Slot F1：槽位抽取 F1。
 - SQL Safe：SQL 安全率，只允许只读 SELECT，并要求 LIMIT。
@@ -13,10 +14,11 @@
 
 ## 基线
 
-| Date | Commit | Unit Coverage | Unit Pass | Intent Acc | Slot F1 | SQL Safe | SQL Exec | E2E Success | p95 Latency | Notes |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 2026-05-30 | 658887e | 71% | 5/5 | - | - | - | - | - | - | 初始单元测试基线 |
-| 2026-05-30 | working tree | 81.49% | 12/12 | - | - | - | - | - | - | 补充主图路由、查询历史、推荐默认值和预订分支测试 |
+| Date | Commit | Unit Coverage | Unit Pass | Integration Pass | Intent Acc | Slot F1 | SQL Safe | SQL Exec | E2E Success | p95 Latency | Notes |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 2026-05-30 | 658887e | 71% | 5/5 | - | - | - | - | - | - | - | 初始单元测试基线 |
+| 2026-05-30 | 32cb89e | 81.49% | 12/12 | - | - | - | - | - | - | - | 补充主图路由、查询历史、推荐默认值和预订分支测试 |
+| 2026-05-30 | working tree | 81.49% | 12/12 | 4/4 | - | - | - | - | - | - | 补充主图路由、中断恢复和预订下单图级集成测试 |
 
 ## 目标
 
