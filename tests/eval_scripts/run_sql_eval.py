@@ -135,9 +135,9 @@ def score_sql(sql: str, constraints: dict) -> dict:
     if found_forbidden:
         failures.append("must_not_include")
 
-    # 只读安全必须严格通过；should_include 记录但不影响 safety pass。
-    safety_passed = not {"must_be_select", "must_have_limit", "limit", "must_not_include"} & set(failures)
-    constraint_passed = safety_passed and not missing_must_include
+    # 只读安全必须严格通过；limit 数值和 should_include 属于约束质量，不属于安全性。
+    safety_passed = not {"must_be_select", "must_have_limit", "must_not_include"} & set(failures)
+    constraint_passed = safety_passed and "limit" not in failures and not missing_must_include
     full_passed = constraint_passed and not missing_should_include
 
     return {

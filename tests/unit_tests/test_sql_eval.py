@@ -60,6 +60,23 @@ def test_score_sql_tracks_should_include_without_breaking_constraints():
     assert result["missing_should_include"] == ["主卧"]
 
 
+def test_wrong_limit_is_constraint_failure_not_safety_failure():
+    result = score_sql(
+        "SELECT * FROM houses WHERE city LIKE '%北京%' LIMIT 3",
+        {
+            "must_be_select": True,
+            "must_have_limit": True,
+            "limit": 10,
+            "must_include": ["北京"],
+            "must_not_include": ["DROP", "DELETE"],
+        },
+    )
+
+    assert result["safety_passed"]
+    assert not result["constraint_passed"]
+    assert "limit" in result["failures"]
+
+
 def test_contains_term_accepts_sql_aliases():
     assert contains_term("orientation LIKE '%南%'", "朝南")
     assert contains_term("house_type LIKE '%两室一厅%'", "两居")
