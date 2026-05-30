@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 from collections.abc import Iterable
 from datetime import datetime
@@ -112,6 +113,18 @@ def normalize_text(value):
     return str(value).strip().lower().replace(" ", "")
 
 
+def is_empty_value(value) -> bool:
+    normalized = normalize_text(value)
+    return normalized in {None, "", "none", "null", "无", "不限", "无所谓", "不限制"}
+
+
+def split_expected_terms(value) -> list[str]:
+    normalized = normalize_text(value)
+    if not normalized:
+        return []
+    return [term for term in re.split(r"[，,、;；]+", normalized) if term]
+
+
 def values_match(expected, actual) -> bool:
     if expected is None:
         return actual is None
@@ -125,4 +138,7 @@ def values_match(expected, actual) -> bool:
 
     expected_text = normalize_text(expected)
     actual_text = normalize_text(actual)
+    expected_terms = split_expected_terms(expected)
+    if len(expected_terms) > 1:
+        return all(term in actual_text for term in expected_terms)
     return expected_text == actual_text or expected_text in actual_text

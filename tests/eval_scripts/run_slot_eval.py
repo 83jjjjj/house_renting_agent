@@ -6,6 +6,7 @@ from tests.eval_scripts.common import (
     PROJECT_ROOT,
     base_summary,
     build_parser,
+    is_empty_value,
     load_cases,
     make_report_dir,
     require_env,
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def score_case(expected: dict, actual: dict):
     expected_fields = set(expected)
-    actual_fields = {key for key, value in actual.items() if value is not None}
+    actual_fields = {key for key, value in actual.items() if not is_empty_value(value)}
     matched_fields = {
         key for key in expected_fields if key in actual_fields and values_match(expected[key], actual[key])
     }
