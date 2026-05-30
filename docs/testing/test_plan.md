@@ -41,6 +41,7 @@ uv run pytest tests/unit_tests --cov=agent --cov-report=term-missing
 uv run python -m tests.eval_scripts.run_intent_eval
 uv run python -m tests.eval_scripts.run_slot_eval
 uv run python -m tests.eval_scripts.run_sql_eval
+uv run python -m tests.eval_scripts.run_e2e_eval
 ```
 
 依赖和环境：
@@ -67,3 +68,5 @@ SQL 评估当前使用 `safety_rate`、`constraint_rate` 和 `full_pass_rate`：
 - `safety_rate`：SQL 必须是只读 SELECT，不包含 DROP/DELETE/UPDATE/INSERT/TRUNCATE/ALTER，并且包含 LIMIT。
 - `constraint_rate`：在安全通过基础上，必须包含测试集定义的关键约束，例如城市、区域、预算。
 - `full_pass_rate`：在关键约束通过基础上，进一步检查 should include，例如朝向、整租、主卧等软约束。
+
+E2E 评估当前使用 `task_success_rate`、`route_success_rate`、`must_visit_success_rate`、`order_check_success_rate` 和 `store_check_success_rate`。它验证图级业务链路，包括意图路由、补充信息中断、推荐后预约选择、预订信息收集、订单写入 store、查询历史和普通问答。当前 E2E runner 会模拟推荐数据库结果和预订工具调用，不验证真实 SQL 执行；真实数据库可执行率由后续 SQL Exec runner 单独负责。
