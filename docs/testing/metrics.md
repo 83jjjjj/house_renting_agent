@@ -30,6 +30,7 @@
 | 2026-05-30 | f5f1da5 | 80.97% | 16/16 | 4/4 | 100.00% | 100.00% | 92.93% | 86.67% | 66.67% | - | - | - | - | - | - | 明确槽位抽取规则并调整语义等价匹配后，字段级 F1 和关键字段命中率提升 |
 | 2026-05-30 | 6b55f16 | 81.02% | 21/21 | 4/4 | 100.00% | 100.00% | 92.93% | 86.67% | 66.67% | 100.00% | 100.00% | 90.00% | - | - | - | SQL 静态评估覆盖 10 条样本，验证只读安全、LIMIT 和关键约束包含情况 |
 | 2026-05-30 | f82d73b | 81.02% | 27/27 | 4/4 | 100.00% | 100.00% | 92.93% | 86.67% | 66.67% | 100.00% | 100.00% | 80.00% | - | 100.00% | - | SQL 静态评估对齐生产 houses 表结构；E2E 图级业务链路 10/10 通过 |
+| 2026-05-30 | caf92bf | 81.02% | 43/43 | 4/4 | 100.00% | 100.00% | 92.93% | 86.67% | 66.67% | 100.00% | 100.00% | 100.00% | 100.00% | 100.00% | 2.07ms | SQL Exec 对齐生产枚举和 fixture 数据后，10/10 执行成功且结果非空 |
 
 ## 测试集评估总结
 
@@ -58,31 +59,20 @@
 | Slot Required Match | 73.33% | 86.67% | +13.34% |
 | Slot Exact Match | 53.33% | 66.67% | +13.34% |
 
-SQL 静态评估结果：
+SQL 静态与真实执行评估结果：
 
 | Metric | Result |
 |---|---:|
 | SQL Safety Rate | 100.00% |
 | SQL Constraint Rate | 100.00% |
-| SQL Full Pass Rate | 80.00% |
+| SQL Full Pass Rate | 100.00% |
+| SQL Exec Rate | 100.00% |
+| SQL DB Error Rate | 0.00% |
+| SQL Empty Result Rate | 0.00% |
+| SQL Result Constraint Rate | 100.00% |
+| SQL p95 Latency | 2.07ms |
 
-SQL Exec 真实数据库执行评估尚未记录正式基线。运行前需要准备可连接 MySQL 服务、只读账号和脱敏 `houses` 数据；本地不需要安装 `mysql` 客户端，runner 使用 `pymysql` 连接。
-
-推荐命令：
-
-```bash
-uv run python -m tests.eval_scripts.run_sql_exec_eval --max-cases 3
-uv run python -m tests.eval_scripts.run_sql_exec_eval
-```
-
-推荐记录字段：
-
-| Metric | Target | Notes |
-|---|---:|---|
-| SQL Exec Rate | >=95% | 语法、字段、连接、超时都算失败 |
-| SQL Empty Result Rate | <=30% | 受测试数据分布影响；若数据覆盖不足，应先补数据而不是调 prompt |
-| SQL Result Constraint Rate | >=90% | 对可检查的返回行做基础约束校验 |
-| SQL p95 Latency | 先记录基线 | 小样本只做冒烟，正式性能看 Locust |
+SQL Exec 使用本地 MySQL 测试库和 `tests/fixtures/mysql_houses_seed.sql`，fixture 按生产样例对齐枚举值：`rent_type=whole_rent/worry_free_rental`、`rooms=one/two/three`、`position=south/north/east/west`、`devices=toilet/cook/gas/balcony` 等。
 
 E2E 图级评估结果：
 
@@ -127,10 +117,12 @@ E2E 图级评估结果：
 
 ### SQL 失败类型
 
-SQL 静态评估 10 条样本中，安全性和硬约束全部通过，剩余 2 条 soft failure：
+SQL 静态评估早期版本 10 条样本中，安全性和硬约束全部通过，但存在 2 条 soft failure：
 
 - `sql_005`：用户表达“不要合租”，模型生成 `rent_type != '合租'`，没有显式生成 `rent_type = '整租'`，因此未命中 should include 的“整租”。这不是安全失败，也不是核心约束失败；它反映的是负向约束和正向租赁方式之间的等价关系。后续可以根据真实数据库枚举值决定是否把“不合租”等价归一为“整租”，或要求 SQL 同时包含排除合租和匹配整租。
 - `sql_006`：用户表达“两居室”，模型使用生产字段 `rooms = 2`，未直接包含“两居”文本，因此未命中 should include 的“两居”。这不是字段错误，也不是约束缺失，更接近测试口径问题；如果生产库 `rooms` 用数值/字符串表达居室数，可以把“两居”归一为 `rooms = 2`。
+
+对齐生产样例后，评测口径改为检查生产枚举：整租使用 `whole_rent`，一居/两居/三居使用 `one/two/three`，朝向使用 `south/north/east/west`，设备使用英文设备码。SQL Exec 全量 10 条样本最终全部通过，且无 DB error、无空结果。
 
 ### E2E 评估说明
 
