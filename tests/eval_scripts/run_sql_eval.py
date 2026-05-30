@@ -43,6 +43,14 @@ houses 表字段：
 """
 
 DANGEROUS_SQL_KEYWORDS = ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"]
+SQL_TERM_ALIASES = {
+    "朝南": ["朝南", "南"],
+    "朝北": ["朝北", "北"],
+    "朝东": ["朝东", "东"],
+    "朝西": ["朝西", "西"],
+    "一居": ["一居", "一居室", "一室", "一室一厅"],
+    "两居": ["两居", "两居室", "两室", "两室一厅"],
+}
 
 
 def normalize_sql(sql: str) -> str:
@@ -79,7 +87,8 @@ def generate_sql(user_input: str) -> tuple[str, dict]:
 def contains_term(sql: str, term) -> bool:
     if isinstance(term, int | float):
         return str(term) in sql
-    return values_match(str(term), sql)
+    candidates = SQL_TERM_ALIASES.get(str(term), [str(term)])
+    return any(values_match(candidate, sql) for candidate in candidates)
 
 
 def extract_limit(sql: str) -> int | None:

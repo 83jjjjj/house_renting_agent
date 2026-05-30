@@ -1,4 +1,5 @@
 from tests.eval_scripts.run_sql_eval import (
+    contains_term,
     extract_limit,
     extract_sql_from_response,
     score_sql,
@@ -57,3 +58,8 @@ def test_score_sql_tracks_should_include_without_breaking_constraints():
     assert result["constraint_passed"]
     assert not result["full_passed"]
     assert result["missing_should_include"] == ["主卧"]
+
+
+def test_contains_term_accepts_sql_aliases():
+    assert contains_term("orientation LIKE '%南%'", "朝南")
+    assert contains_term("house_type LIKE '%两室一厅%'", "两居")
