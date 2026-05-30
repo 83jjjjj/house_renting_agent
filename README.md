@@ -90,6 +90,15 @@ RUN_LIVE_LLM_TESTS=1 uv run pytest tests/integration_tests
 uv run ruff check src tests
 ```
 
+测试集评估需要真实 LLM，因此需要先在 `.env` 中配置 `DEEPSEEK_API_KEY`。意图识别和槽位抽取评估不依赖数据库：
+
+```bash
+uv run python -m tests.eval_scripts.run_intent_eval
+uv run python -m tests.eval_scripts.run_slot_eval
+```
+
+评估结果会写入 `reports/eval/<时间>_<commit>_<评估名>/`，包括 `summary.json`、`cases.jsonl` 和 `failures.jsonl`。这些报告用于保存每次模型/Prompt/代码调整后的指标和失败样本分析，不提交到 Git。
+
 ## 测试分层
 
 这个项目的测试策略分三层：
