@@ -696,7 +696,7 @@
         // 创建会话
         async function createThread() {
             try {
-                const response = await fetch('http://127.0.0.1:8524/threads', {
+                const response = await fetch('http://127.0.0.1:8001/threads', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -767,7 +767,7 @@
                     };
                 }
                 // 发送请求到智能体
-                const response = await fetch(`http://127.0.0.1:8524/threads/${currentThreadId}/runs/stream`, {
+                const response = await fetch(`http://127.0.0.1:8001/threads/${currentThreadId}/runs/stream`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

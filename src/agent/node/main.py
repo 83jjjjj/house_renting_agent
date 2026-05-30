@@ -37,13 +37,13 @@ def query_mine(state: MainState, runtime: Runtime[ContextSchema], *, store: Base
 
     if reservations:
         for reservation in reservations:
-            reservations_info += (f"订单id：{reservation.get("order_id", "无")}\n"
-                                  f"房源名称：{reservation.get("house_name", "无")}\n"
-                                  f"房源预订电话：{reservation.get("phone_number", "无")}\n"
-                                  f"价格，单位为元/月：{reservation.get("price", "无")}\n"
-                                  f"房源详细信息：{reservation.get("house_description", "无")}\n"
-                                  f"房子所在城市：{reservation.get("city", "无")}\n"
-                                  f"房子所在区县：{reservation.get("area", "无")}\n")
+            reservations_info += (f"订单id：{reservation.get('order_id', '无')}\n"
+                                  f"房源名称：{reservation.get('house_name', '无')}\n"
+                                  f"房源预订电话：{reservation.get('phone_number', '无')}\n"
+                                  f"价格，单位为元/月：{reservation.get('price', '无')}\n"
+                                  f"房源详细信息：{reservation.get('house_description', '无')}\n"
+                                  f"房子所在城市：{reservation.get('city', '无')}\n"
+                                  f"房子所在区县：{reservation.get('area', '无')}\n")
     else:
         reservations_info = "无"
 
