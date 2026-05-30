@@ -2,6 +2,7 @@ from tests.eval_scripts.run_sql_eval import (
     contains_term,
     extract_limit,
     extract_sql_from_response,
+    invalid_enum_literals,
     referenced_columns,
     score_sql,
 )
@@ -79,14 +80,67 @@ def test_wrong_limit_is_constraint_failure_not_safety_failure():
 
 
 def test_contains_term_accepts_sql_aliases():
-    assert contains_term("orientation LIKE '%南%'", "朝南")
-    assert contains_term("house_type LIKE '%两室一厅%'", "两居")
+    assert contains_term("position = 'south'", "朝南")
+    assert contains_term("rooms = 'two'", "两居")
+    assert contains_term("rent_type = 'whole_rent'", "整租")
+    assert contains_term("devices LIKE '%toilet%'", "独卫")
 
 
 def test_referenced_columns_extracts_select_where_and_order_by():
     assert referenced_columns(
         "SELECT id, title FROM houses WHERE city_name LIKE '%北京%' AND price <= 5000 ORDER BY price ASC LIMIT 3"
     ) == {"id", "title", "city_name", "price"}
+
+
+def test_referenced_columns_ignores_string_literals():
+    assert referenced_columns(
+        "SELECT id FROM houses WHERE position = 'south' AND rooms IN ('one', 'two') LIMIT 3"
+    ) == {"id", "position", "rooms"}
+
+
+def test_invalid_enum_literals_rejects_non_production_values():
+    result = invalid_enum_literals(
+        "SELECT id FROM houses WHERE position LIKE '%南%' AND rooms = 1 "
+        "AND rent_type = '整租' AND devices LIKE '%厨房%' LIMIT 3"
+    )
+
+    assert result == [
+        {"column": "rent_type", "value": "整租"},
+        {"column": "rooms", "value": "1"},
+        {"column": "position", "value": "%南%"},
+        {"column": "devices", "value": "%厨房%"},
+    ]
+
+
+def test_score_sql_accepts_production_enum_values_as_should_include():
+    result = score_sql(
+        "SELECT id FROM houses WHERE position = 'south' AND rooms = 'two' "
+        "AND rent_type = 'whole_rent' AND devices LIKE '%toilet%' LIMIT 3",
+        {
+            "must_be_select": True,
+            "must_have_limit": True,
+            "should_include": ["朝南", "两居", "整租", "独卫"],
+            "must_not_include": ["DROP", "DELETE"],
+        },
+    )
+
+    assert result["constraint_passed"]
+    assert result["full_passed"]
+    assert result["invalid_enum_literals"] == []
+
+
+def test_score_sql_rejects_non_production_enum_values():
+    result = score_sql(
+        "SELECT id FROM houses WHERE position LIKE '%南%' AND rooms = 1 LIMIT 3",
+        {
+            "must_be_select": True,
+            "must_have_limit": True,
+            "must_not_include": ["DROP", "DELETE"],
+        },
+    )
+
+    assert not result["constraint_passed"]
+    assert "invalid_enum_literals" in result["failures"]
 
 
 def test_score_sql_rejects_unknown_columns():

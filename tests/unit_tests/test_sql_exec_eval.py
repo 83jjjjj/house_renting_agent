@@ -7,6 +7,7 @@ from tests.eval_scripts.run_sql_exec_eval import (
     extract_text_constraints,
     json_safe_row,
     percentile,
+    result_value_matches,
 )
 
 
@@ -44,6 +45,36 @@ def test_check_result_constraints_passes_matching_rows():
     assert result["result_constraints_passed"]
     assert result["row_count"] == 2
     assert result["failures"] == []
+
+
+def test_check_result_constraints_accepts_production_enum_values():
+    sql = (
+        "SELECT id, price, position, rooms, rent_type, devices FROM houses "
+        "WHERE position = 'south' AND rooms = 'one' AND rent_type = 'whole_rent' "
+        "AND devices LIKE '%toilet%' AND price <= 8000 LIMIT 2"
+    )
+    rows = [
+        {
+            "id": 1,
+            "price": Decimal("6500.00"),
+            "position": "south",
+            "rooms": "one",
+            "rent_type": "whole_rent",
+            "devices": "toilet,cook,gas,aircondition",
+        }
+    ]
+
+    result = check_result_constraints(rows, sql)
+
+    assert result["result_constraints_passed"]
+    assert result["failures"] == []
+
+
+def test_result_value_matches_chinese_terms_to_production_values():
+    assert result_value_matches("朝南", "south")
+    assert result_value_matches("一居", "one")
+    assert result_value_matches("整租", "whole_rent")
+    assert result_value_matches("独卫", "toilet,cook,gas")
 
 
 def test_check_result_constraints_fails_price_and_text_mismatch():

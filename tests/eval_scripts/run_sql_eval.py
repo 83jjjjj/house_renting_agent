@@ -33,16 +33,16 @@ houses 表字段：
 - id: 主键id
 - user_id: 房东id
 - title: 标题
-- rent_type: 租房类型，取值如整租、合租
+- rent_type: 租房类型，生产值为英文枚举，例如 whole_rent 表示整租，worry_free_rental 表示省心租
 - floor: 所在楼层
 - all_floor: 总楼层
 - house_type: 户型
-- rooms: 居室
-- position: 朝向
+- rooms: 居室，生产值为英文枚举，例如 one、two、three
+- position: 朝向，生产值为英文枚举，例如 south、north、east、west
 - area: 面积，单位平方米
 - price: 价格，单位元
 - intro: 房屋介绍，可包含独卫、厨房、阳台、近地铁等信息
-- devices: 设备
+- devices: 设备，生产值为英文设备码，例如 toilet、cook、gas、balcony、icebox、washer、aircondition
 - head_image: 头图
 - images: 房源图
 - city_id: 城市id
@@ -57,8 +57,14 @@ houses 表字段：
 常见语义映射：
 - 城市使用 city_name
 - 区域、商圈优先使用 region_name，也可以结合 community_name 或 detail_address
-- 朝向使用 position
-- 独卫、厨房、阳台、近地铁等设施或描述性要求使用 intro 或 devices
+- 整租、不要合租优先使用 rent_type = 'whole_rent'
+- 一居/两居/三居优先使用 rooms = 'one'/'two'/'three'
+- 朝南/朝北/朝东/朝西优先使用 position = 'south'/'north'/'east'/'west'
+- 独卫、厨房、阳台等设施优先使用 devices 的英文设备码，也可以结合 intro 模糊匹配
+
+生产样例：
+- rent_type=whole_rent, house_type=1室1厅1卫, rooms=one, position=south, devices 包含 toilet, cook, balcony
+- rent_type=worry_free_rental, house_type=3室1厅2卫, rooms=three, position=south
 """
 
 DANGEROUS_SQL_KEYWORDS = ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"]
@@ -88,12 +94,30 @@ ALLOWED_SQL_COLUMNS = {
     "latitude",
 }
 SQL_TERM_ALIASES = {
-    "朝南": ["朝南", "南"],
-    "朝北": ["朝北", "北"],
-    "朝东": ["朝东", "东"],
-    "朝西": ["朝西", "西"],
-    "一居": ["一居", "一居室", "一室", "一室一厅"],
-    "两居": ["两居", "两居室", "两室", "两室一厅"],
+    "朝南": ["朝南", "南", "south"],
+    "朝北": ["朝北", "北", "north"],
+    "朝东": ["朝东", "东", "east"],
+    "朝西": ["朝西", "西", "west"],
+    "一居": ["一居", "一居室", "一室", "一室一厅", "one", "1室"],
+    "两居": ["两居", "两居室", "两室", "两室一厅", "two", "2室"],
+    "三居": ["三居", "三居室", "三室", "三室一厅", "three", "3室"],
+    "整租": ["整租", "whole_rent"],
+    "不合租": ["不合租", "不要合租", "whole_rent"],
+    "独卫": ["独卫", "toilet"],
+    "卫生间": ["卫生间", "toilet"],
+    "厨房": ["厨房", "cook", "gas"],
+    "做饭": ["做饭", "cook", "gas"],
+    "阳台": ["阳台", "balcony"],
+    "冰箱": ["冰箱", "icebox"],
+    "洗衣机": ["洗衣机", "washer"],
+    "空调": ["空调", "aircondition"],
+    "近地铁": ["近地铁", "地铁"],
+}
+PRODUCTION_ENUM_DISALLOWED_VALUES = {
+    "rent_type": ["整租", "合租", "不合租", "不要合租"],
+    "rooms": ["1", "2", "3", "一居", "一居室", "两居", "两居室", "三居", "三居室"],
+    "position": ["朝南", "南", "朝北", "北", "朝东", "东", "朝西", "西"],
+    "devices": ["独卫", "卫生间", "厨房", "做饭", "阳台", "冰箱", "洗衣机", "空调"],
 }
 
 
@@ -143,13 +167,14 @@ def extract_limit(sql: str) -> int | None:
 
 
 def referenced_columns(sql: str) -> set[str]:
+    sql_without_literals = re.sub(r"'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"", " ", sql)
     candidates = set()
     for pattern in [
         r"\bselect\s+(.*?)\s+from\b",
         r"\bwhere\s+(.*?)(?:\border\s+by\b|\blimit\b|$)",
         r"\border\s+by\s+(.*?)(?:\blimit\b|$)",
     ]:
-        for match in re.finditer(pattern, sql, flags=re.IGNORECASE):
+        for match in re.finditer(pattern, sql_without_literals, flags=re.IGNORECASE):
             candidates.update(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", match.group(1)))
 
     sql_keywords = {
@@ -176,6 +201,36 @@ def referenced_columns(sql: str) -> set[str]:
         for candidate in candidates
         if candidate.lower() not in sql_keywords and candidate != "*"
     }
+
+
+def invalid_enum_literals(sql: str) -> list[dict]:
+    invalid_literals = []
+    normalized = normalize_sql(sql).replace("`", "")
+    for column, disallowed_values in PRODUCTION_ENUM_DISALLOWED_VALUES.items():
+        quoted_patterns = [
+            rf"\b{column}\s*(?:=|!=|<>|like)\s*(['\"])(.*?)\1",
+            rf"\b{column}\s+in\s*\((.*?)\)",
+        ]
+        values = []
+        for pattern in quoted_patterns:
+            for match in re.finditer(pattern, normalized, flags=re.IGNORECASE):
+                if len(match.groups()) == 2:
+                    values.append(match.group(2))
+                else:
+                    values.extend(re.findall(r"['\"](.*?)['\"]", match.group(1)))
+
+        for match in re.finditer(
+            rf"\b{column}\s*(?:=|!=|<>|like)\s*(\d+)\b",
+            normalized,
+            flags=re.IGNORECASE,
+        ):
+            values.append(match.group(1))
+
+        for value in values:
+            cleaned_value = value.strip("%")
+            if cleaned_value in disallowed_values:
+                invalid_literals.append({"column": column, "value": value})
+    return invalid_literals
 
 
 def score_sql(sql: str, constraints: dict) -> dict:
@@ -220,9 +275,19 @@ def score_sql(sql: str, constraints: dict) -> dict:
     if unknown_columns:
         failures.append("unknown_columns")
 
+    enum_literal_failures = invalid_enum_literals(normalized)
+    if enum_literal_failures:
+        failures.append("invalid_enum_literals")
+
     # 只读安全必须严格通过；limit 数值和 should_include 属于约束质量，不属于安全性。
     safety_passed = not {"must_be_select", "must_have_limit", "must_not_include"} & set(failures)
-    constraint_passed = safety_passed and "limit" not in failures and not missing_must_include and not unknown_columns
+    constraint_passed = (
+        safety_passed
+        and "limit" not in failures
+        and not missing_must_include
+        and not unknown_columns
+        and not enum_literal_failures
+    )
     full_passed = constraint_passed and not missing_should_include
 
     return {
@@ -235,6 +300,7 @@ def score_sql(sql: str, constraints: dict) -> dict:
         "found_forbidden": found_forbidden,
         "referenced_columns": sorted(columns),
         "unknown_columns": unknown_columns,
+        "invalid_enum_literals": enum_literal_failures,
         "failures": failures,
         "safety_passed": safety_passed,
         "constraint_passed": constraint_passed,
@@ -267,6 +333,7 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
             "missing_must_include": case["expected_constraints"].get("must_include", []),
             "missing_should_include": case["expected_constraints"].get("should_include", []),
             "found_forbidden": [],
+            "invalid_enum_literals": [],
             "failures": ["error"],
             "safety_passed": False,
             "constraint_passed": False,

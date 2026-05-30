@@ -49,6 +49,24 @@ TEXT_PREDICATE_COLUMNS = {
 }
 logger = logging.getLogger(__name__)
 
+RESULT_VALUE_ALIASES = {
+    "south": ["south", "朝南", "南"],
+    "north": ["north", "朝北", "北"],
+    "east": ["east", "朝东", "东"],
+    "west": ["west", "朝西", "西"],
+    "whole_rent": ["whole_rent", "整租", "不合租", "不要合租"],
+    "one": ["one", "一居", "一居室", "1室", "1室1厅", "1室1厅1卫"],
+    "two": ["two", "两居", "两居室", "2室", "2室1厅", "2室1厅1卫"],
+    "three": ["three", "三居", "三居室", "3室", "3室1厅", "3室1厅1卫", "3室1厅2卫"],
+    "toilet": ["toilet", "独卫", "卫生间", "卫"],
+    "cook": ["cook", "厨房", "做饭", "可做饭"],
+    "gas": ["gas", "厨房", "做饭", "可做饭"],
+    "balcony": ["balcony", "阳台"],
+    "icebox": ["icebox", "冰箱"],
+    "washer": ["washer", "洗衣机"],
+    "aircondition": ["aircondition", "空调"],
+}
+
 
 def normalize_column_name(column: str) -> str:
     return column.split(".")[-1].strip("`").lower()
@@ -72,6 +90,25 @@ def json_safe_value(value):
 
 def json_safe_row(row: dict) -> dict:
     return {str(key): json_safe_value(value) for key, value in row.items()}
+
+
+def result_value_matches(expected: str, actual) -> bool:
+    if values_match(expected, actual):
+        return True
+
+    actual_text = str(actual)
+    actual_terms = {term.strip().lower() for term in re.split(r"[，,、;；\s]+", actual_text) if term.strip()}
+    expected_text = str(expected).strip().lower()
+
+    for canonical, aliases in RESULT_VALUE_ALIASES.items():
+        normalized_aliases = {alias.lower() for alias in aliases}
+        if expected_text in normalized_aliases and (
+            canonical in actual_terms or any(alias in actual_text.lower() for alias in normalized_aliases)
+        ):
+            return True
+        if expected_text == canonical and actual_terms & normalized_aliases:
+            return True
+    return False
 
 
 def percentile(values: list[float], q: float) -> float | None:
@@ -207,7 +244,7 @@ def check_result_constraints(rows: list[dict], sql: str) -> dict:
                         {"type": "like", "column": column, "term": term, "reason": "column_not_selected"}
                     )
                     break
-                if not values_match(term, value):
+                if not result_value_matches(term, value):
                     failures.append(f"like:{column}")
                     break
 
@@ -301,6 +338,7 @@ def run_eval(
                     "missing_must_include": case["expected_constraints"].get("must_include", []),
                     "missing_should_include": case["expected_constraints"].get("should_include", []),
                     "found_forbidden": [],
+                    "invalid_enum_literals": [],
                     "failures": ["error"],
                     "safety_passed": False,
                     "constraint_passed": False,

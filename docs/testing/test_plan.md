@@ -67,6 +67,13 @@ mysql -u <user> -p < tests/fixtures/mysql_houses_seed.sql
 
 如果使用数据库 GUI 或容器内 MySQL，也可以直接执行 `tests/fixtures/mysql_houses_seed.sql`。它会创建生产同构的 `houses` 表，并插入 30 条脱敏样本数据。数据 ID 固定在 `99000000001` 到 `99000000030`，重复导入会先删除这一段 fixture 数据，不影响其他 ID。
 
+fixture 数据按生产样例对齐枚举值：
+
+- `rent_type` 使用 `whole_rent`、`worry_free_rental`，不使用中文“整租/合租”。
+- `rooms` 使用 `one`、`two`、`three`，不使用数字 `1/2/3`。
+- `position` 使用 `south`、`north`、`east`、`west`，不使用中文“朝南/朝北”。
+- `devices` 使用 `toilet`、`cook`、`gas`、`balcony`、`icebox`、`washer`、`aircondition` 等英文设备码。
+
 输出目录：
 
 ```text
