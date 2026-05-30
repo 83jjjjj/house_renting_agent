@@ -1,61 +1,101 @@
-# New LangGraph Project
+# House Renting Agent
 
-[![CI](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml/badge.svg)](https://github.com/langchain-ai/new-langgraph-project/actions/workflows/integration-tests.yml)
+一个基于 LangGraph 的租房助手。项目把一次租房对话拆成主图和三个子图：意图识别、房源推荐、预订下单、个人历史查询/普通问答，并通过 LangGraph `interrupt()` 支持多轮补充信息。
 
-This template demonstrates a simple application implemented using [LangGraph](https://github.com/langchain-ai/langgraph), designed for showing how to get started with [LangGraph Server](https://langchain-ai.github.io/langgraph/concepts/langgraph_server/#langgraph-server) and using [LangGraph Studio](https://langchain-ai.github.io/langgraph/concepts/langgraph_studio/), a visual debugging IDE.
+## 核心能力
 
-<div align="center">
-  <img src="./static/studio_ui.png" alt="Graph view in LangGraph studio UI" width="75%" />
-</div>
+- **意图路由**：LLM 结构化识别用户请求，路由到推荐、预订、查询我的、普通问答。
+- **房源推荐**：抽取预算、城市、区域、朝向、房型等偏好，必要时中断补充信息；读取 MySQL schema 后生成 SQL 查询并总结推荐结果。
+- **预订下单**：逐步收集房源名、姓名、电话、身份证号，调用工具生成订单并写入 LangGraph store。
+- **长期记忆**：以 `context.user_id` 作为 namespace，保存用户预算偏好和历史订单。
+- **可视化调试**：支持 LangGraph Studio 链路追踪，也提供 `static/house.html` 作为简单聊天前端。
 
-The core logic defined in `src/agent/graph.py`, showcases an single-step application that responds with a fixed string and the configuration provided.
+## 图结构
 
-You can extend this graph to orchestrate more complex agentic workflows that can be visualized and debugged in LangGraph Studio.
+`langgraph.json` 暴露了四个图：
 
-## Getting Started
+- `house_renting_agent`: 主图入口，定义在 `src/agent/main.py`
+- `recommend_graph`: 推荐子图，定义在 `src/agent/recommend.py`
+- `reserve_graph`: 预订子图，定义在 `src/agent/reserve.py`
+- `normal_graph`: 普通问答子图，定义在 `src/agent/normal.py`
 
-1. Install dependencies, along with the [LangGraph CLI](https://langchain-ai.github.io/langgraph/concepts/langgraph_cli/), which will be used to run the server.
+主图流程：
 
-```bash
-cd path/to/your/app
-pip install -e . "langgraph-cli[inmem]"
+```text
+START
+  -> determine_user_intent
+  -> recommend | reserve | mine | normal
 ```
 
-2. (Optional) Customize the code and project as needed. Create a `.env` file if you need to use secrets.
+推荐流程结束后会进入 `reserve_or_not` 中断节点，询问用户是否继续预订。
+
+## 环境变量
+
+复制 `.env.example`：
 
 ```bash
 cp .env.example .env
 ```
 
-If you want to enable LangSmith tracing, add your LangSmith API key to the `.env` file.
+需要配置：
 
 ```text
-# .env
-LANGSMITH_API_KEY=lsv2...
+DEEPSEEK_API_KEY=...
+
+DB_USER=...
+DB_PASSWORD=...
+DB_HOST=...
+DB_PORT=3306
+DB_NAME=...
+
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=...
+LANGSMITH_PROJECT=house-renting-agent
 ```
 
-3. Start the LangGraph Server.
+## 运行
 
-```shell
-langgraph dev
+```bash
+uv sync --group dev
+uv run langgraph dev
 ```
 
-For more information on getting started with LangGraph Server, [see here](https://langchain-ai.github.io/langgraph/tutorials/langgraph-platform/local-server/).
+启动后可以用 LangGraph Studio 调试，也可以打开 `static/house.html`。前端默认请求 `http://127.0.0.1:8524`，并传入固定测试用户 `context.user_id = "159"`。
 
-## How to customize
+## 测试
 
-1. **Define runtime context**: Modify the `Context` class in the `graph.py` file to expose the arguments you want to configure per assistant. For example, in a chatbot application you may want to define a dynamic system prompt or LLM to use. For more information on runtime context in LangGraph, [see here](https://langchain-ai.github.io/langgraph/agents/context/?h=context#static-runtime-context).
+普通单元测试不依赖真实 LLM 和数据库，使用 fake model、fake store、monkeypatch 隔离外部依赖：
 
-2. **Extend the graph**: The core logic of the application is defined in [graph.py](src/agent/main.py). You can modify this file to add new nodes, edges, or change the flow of information.
+```bash
+uv run pytest tests/unit_tests
+```
 
-## Development
+当前覆盖重点：
 
-While iterating on your graph in LangGraph Studio, you can edit past state and rerun your app from previous states to debug specific nodes. Local changes will be automatically applied via hot reload.
+- 图对象是否可以成功编译
+- 意图识别节点的结构化路由
+- 普通问答节点是否正确包装 system message
+- 推荐节点的偏好合并、预算扩展、订单历史保留
+- 预订节点在工具返回后的总结分支
 
-Follow-up requests extend the same thread. You can create an entirely new thread, clearing previous history, using the `+` button in the top right.
+实时 LLM 冒烟测试默认跳过，避免 CI 消耗外部额度和受网络波动影响。需要手动验证时开启：
 
-For more advanced features and examples, refer to the [LangGraph documentation](https://langchain-ai.github.io/langgraph/). These resources can help you adapt this template for your specific use case and build more sophisticated conversational agents.
+```bash
+RUN_LIVE_LLM_TESTS=1 uv run pytest tests/integration_tests
+```
 
-LangGraph Studio also integrates with [LangSmith](https://smith.langchain.com/) for more in-depth tracing and collaboration with teammates, allowing you to analyze and optimize your chatbot's performance.
+静态检查：
 
+```bash
+uv run ruff check src tests
+```
+
+## 测试分层
+
+这个项目的测试策略分三层：
+
+1. **确定性单元测试**：节点函数级测试，mock LLM、interrupt、store 和工具调用，验证状态转换和边界条件。
+2. **图级集成测试**：用 LangGraph 的 invoke/resume 机制跑关键链路，验证节点连接、中断恢复、store 写入和最终输出。
+3. **人工可观测测试**：用 LangGraph Studio + LangSmith trace 检查 LLM 推理、工具调用参数、SQL 查询、异常路径。
+
+对于 LLM 应用，单元测试不直接断言长文本完全相等，而是断言结构化输出、工具调用、状态变化和关键字段；质量评估再用测试集和人工/LLM-as-judge 分开做。
