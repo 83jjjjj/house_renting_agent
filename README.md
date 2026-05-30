@@ -95,9 +95,10 @@ uv run ruff check src tests
 ```bash
 uv run python -m tests.eval_scripts.run_intent_eval
 uv run python -m tests.eval_scripts.run_slot_eval
+uv run python -m tests.eval_scripts.run_sql_eval
 ```
 
-评估结果会写入 `reports/eval/<时间>_<commit>_<评估名>/`，包括 `summary.json`、`cases.jsonl` 和 `failures.jsonl`。槽位抽取还会额外输出 `required_failures.jsonl`，用于区分关键字段漏抽/错抽和仅多抽字段。报告用于保存每次模型/Prompt/代码调整后的指标和失败样本分析，不提交到 Git。
+评估结果会写入 `reports/eval/<时间>_<commit>_<评估名>/`，包括 `summary.json`、`cases.jsonl` 和 `failures.jsonl`。槽位抽取还会额外输出 `required_failures.jsonl`，用于区分关键字段漏抽/错抽和仅多抽字段。SQL 评估当前做静态检查，验证只读、危险关键字、LIMIT 和约束包含情况，不连接真实数据库。报告用于保存每次模型/Prompt/代码调整后的指标和失败样本分析，不提交到 Git。
 
 ## 测试分层
 

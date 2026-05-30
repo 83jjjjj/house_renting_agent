@@ -40,13 +40,14 @@ uv run pytest tests/unit_tests --cov=agent --cov-report=term-missing
 ```bash
 uv run python -m tests.eval_scripts.run_intent_eval
 uv run python -m tests.eval_scripts.run_slot_eval
+uv run python -m tests.eval_scripts.run_sql_eval
 ```
 
 依赖和环境：
 
 - 依赖项：使用项目已有依赖，不额外引入第三方包。
 - 必要环境变量：`DEEPSEEK_API_KEY`。
-- 数据库变量：`DB_USER`、`DB_PASSWORD`、`DB_HOST`、`DB_PORT`、`DB_NAME` 只在后续 SQL/E2E 真实链路评估时需要。
+- 数据库变量：`DB_USER`、`DB_PASSWORD`、`DB_HOST`、`DB_PORT`、`DB_NAME` 只在后续 SQL 执行率和 E2E 真实链路评估时需要。当前 SQL runner 只做静态安全和约束检查，不连接数据库。
 
 输出目录：
 
@@ -60,3 +61,9 @@ reports/eval/<timestamp>_<commit>_<eval-name>/
 意图识别使用 `accuracy` 和 `macro_f1`。如果只用 `--max-cases` 做 smoke 测试，样本可能只覆盖部分类别，此时主要看 `accuracy` 和脚本是否能连通；正式记录指标时应跑完整测试集，并参考 `per_label` 和混淆矩阵。
 
 槽位抽取使用 `field_precision`、`field_recall`、`field_f1`、整条样本 `exact_match_rate` 和 `required_fields_match_rate`。`exact_match_rate` 会惩罚多抽字段，`required_fields_match_rate` 更关注 expected 里的关键字段是否全部抽对。覆盖率不用于评估模型效果，只用于评估单元测试对代码路径的覆盖程度。
+
+SQL 评估当前使用 `safety_rate`、`constraint_rate` 和 `full_pass_rate`：
+
+- `safety_rate`：SQL 必须是只读 SELECT，不包含 DROP/DELETE/UPDATE/INSERT/TRUNCATE/ALTER，并且包含 LIMIT。
+- `constraint_rate`：在安全通过基础上，必须包含测试集定义的关键约束，例如城市、区域、预算。
+- `full_pass_rate`：在关键约束通过基础上，进一步检查 should include，例如朝向、整租、主卧等软约束。
