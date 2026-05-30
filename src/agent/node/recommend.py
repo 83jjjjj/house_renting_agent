@@ -1,25 +1,24 @@
 # recommend graph node
 
 
-from dotenv import load_dotenv
-
-load_dotenv(verbose=True)
-
 import os
+from functools import lru_cache
 
-from langchain_community.utilities import SQLDatabase
-from langgraph.prebuilt import ToolNode
-from pydantic import BaseModel, Field
-
+from dotenv import load_dotenv
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_community.utilities import SQLDatabase
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langgraph.prebuilt import ToolNode
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
+from pydantic import BaseModel, Field
 
-from src.agent.common.llm import model
-from src.agent.common.context import ContextSchema
-from src.agent.state.recommend import RecommendState
+from agent.common.context import ContextSchema
+from agent.common.llm import model
+from agent.state.recommend import RecommendState
+
+load_dotenv(verbose=True)
 
 
 class Demands(BaseModel):
@@ -56,6 +55,35 @@ preferences_dict = {
     "others": "其余偏好"
 }
 
+
+@lru_cache(maxsize=1)
+def get_sql_tools():
+    """Create SQL tools lazily so graph imports do not require a live database."""
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    missing = [
+        name
+        for name, value in {
+            "DB_USER": db_user,
+            "DB_PASSWORD": db_password,
+            "DB_HOST": db_host,
+            "DB_PORT": db_port,
+            "DB_NAME": db_name,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(f"缺少数据库配置：{', '.join(missing)}")
+
+    db = SQLDatabase.from_uri(
+        f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    )
+    tools = SQLDatabaseToolkit(db=db, llm=model).get_tools()
+    return {tool.name: tool for tool in tools}
+
 # 收集用户房源需求
 def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], *, store: BaseStore):
     # 提取原则：有新值更新为新值，无则用旧值不动，再无则用默认值补充
@@ -65,13 +93,14 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     namespace = (user_id,)
     preferences_key = "preferences"
     history_preferences = store.get(namespace, preferences_key)
-    if user_id and history_preferences:
-        demands = Demands(**history_preferences.value)
+    history_preferences_value = history_preferences.value if history_preferences else {}
+    if user_id and history_preferences_value:
+        demands = Demands(**history_preferences_value)
     else:
         demands = Demands()
     # 如果用户问话里有需求信息，尝试提取
     def info_extractor(user_message: HumanMessage):
-        extract_info_sys_prompt = f"从以下提供的用户消息里，提取用户的租房偏好信息，没找到就给None，不可瞎猜或无中生有。\n"
+        extract_info_sys_prompt = "从以下提供的用户消息里，提取用户的租房偏好信息，没找到就给None，不可瞎猜或无中生有。\n"
         extracted_preferences = model.with_structured_output(Demands, method="function_calling").invoke([
             SystemMessage(content=extract_info_sys_prompt),
             user_message
@@ -86,12 +115,11 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     for pref in preferences_dict:
         if not final_demands.get(pref):
             missing_info_list.append(preferences_dict[pref])
-    user_input = interrupt(f"为了提供更精准的服务，请提供以下关键信息：{missing_info_list}。您也可以选择‘不提供’，将开启默认服务")
-    if user_input == "不提供":
-        pass
-    else:
-        new_demands = info_extractor(HumanMessage(content=user_input))
-        final_demands.update(new_demands)
+    if missing_info_list:
+        user_input = interrupt(f"为了提供更精准的服务，请提供以下关键信息：{missing_info_list}。您也可以选择‘不提供’，将开启默认服务")
+        if user_input != "不提供":
+            new_demands = info_extractor(HumanMessage(content=user_input))
+            final_demands.update(new_demands)
 
     for info in final_demands:
         # 除了0，还可以除去""
@@ -109,35 +137,22 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
         "budget_max": max(ori_pref_dict.get("budget_max", default_demands["budget_max"]), final_demands["budget_max"]),
     }
     # 存入 store 保持持久化
-    store.put(namespace, preferences_key, {
-        "budget_min": updated_preferences["budget_min"],
-        "budget_max": updated_preferences["budget_max"],
-    })
+    preferences_to_store = dict(history_preferences_value)
+    preferences_to_store.update(
+        {
+            "budget_min": updated_preferences["budget_min"],
+            "budget_max": updated_preferences["budget_max"],
+        }
+    )
+    store.put(namespace, preferences_key, preferences_to_store)
     # 更新state
     return {
         "user_preferences": final_demands,
     }
 
-db_user = os.getenv("DB_USER")
-db_password = os.getenv("DB_PASSWORD")
-db_host = os.getenv("DB_HOST")
-db_port = os.getenv("DB_PORT")
-db_name = os.getenv("DB_NAME")
-db = SQLDatabase.from_uri(f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
-
-sql_toolkit = SQLDatabaseToolkit(db=db, llm=model)
-sql_tools = sql_toolkit.get_tools()
-# ['sql_db_query', 'sql_db_schema', 'sql_db_list_tables', 'sql_db_query_checker']
-# print([tool.name for tool in sql_toolkit.get_tools()])
-
-# next配合for+if精准取出第一个name符合条件的元素，可给上第二个参数在没找到时作默认值
-query_tool = next(tool for tool in sql_tools if tool.name == "sql_db_query")
-schema_tool = next(tool for tool in sql_tools if tool.name == "sql_db_schema")
-list_tables_tool = next(tool for tool in sql_tools if tool.name == "sql_db_list_tables")
-query_checker_tool = next(tool for tool in sql_tools if tool.name == "sql_db_query_checker")
-
 # 手动调用工具，列出数据库里的所有表，供后续选择
 def list_tables(state: RecommendState):
+    list_tables_tool = get_sql_tools()["sql_db_list_tables"]
     tool_call = {
         "name": "sql_db_list_tables",
         "id": "123456",
@@ -152,12 +167,14 @@ def list_tables(state: RecommendState):
 # 强制让llm生成tool_calls，判断要查询哪个表的schema
 def call_schema_tool(state: RecommendState):
     # 强制模型走schema工具调用
+    schema_tool = get_sql_tools()["sql_db_schema"]
     model_with_schema = model.bind_tools([schema_tool], tool_choice=True)
     tool_message = model_with_schema.invoke(state["messages"])
     return {"messages": tool_message}
 
 # 获取schema
-get_schema = ToolNode([schema_tool], name="get_schema")
+def get_schema(state: RecommendState):
+    return ToolNode([get_sql_tools()["sql_db_schema"]], name="get_schema").invoke(state)
 
 # sql查询语句生成
 def generate_sql_query(state: RecommendState):
@@ -191,6 +208,7 @@ def generate_sql_query(state: RecommendState):
 select [所需字段] from 房源表 where city = '北京' and region_name = '海淀' and [其余偏好条件]; 
     """
     system_prompt = generate_sql_query_system_prompt
+    query_tool = get_sql_tools()["sql_db_query"]
     model_with_query_tool = model.bind_tools([query_tool], tool_choice=True)
     # 上一条消息是获取到schema的toolmessage
     ai_message_with_tool_calls = model_with_query_tool.invoke([SystemMessage(system_prompt)] + state["messages"])
@@ -210,8 +228,9 @@ def check_sql(state: RecommendState):
 
 ### 输出要求
 如果sql语句有语法错误，请重写查询。否则，复制原始查询，之后，调用合适的工具去执行查询。
-"""
+    """
     system_prompt = check_sql_system_prompt
+    query_tool = get_sql_tools()["sql_db_query"]
     model_with_query_tool = model.bind_tools([query_tool], tool_choice=True)
     tool_call = state["messages"][-1].tool_calls[0]
     sql = tool_call["args"]["query"]
@@ -221,10 +240,11 @@ def check_sql(state: RecommendState):
     return {"messages": ai_message_with_tool_calls}
 
 # 执行sql
-execute_query = ToolNode([query_tool], name="execute_query")
+def execute_query(state: RecommendState):
+    return ToolNode([get_sql_tools()["sql_db_query"]], name="execute_query").invoke(state)
 
 # 根据sql结果输出
 def integrate_and_output(state: RecommendState):
-    system_prompt = f"根据工具查询到的房源结果集，向用户推荐房源。"
+    system_prompt = "根据工具查询到的房源结果集，向用户推荐房源。"
     ai_message = model.invoke([SystemMessage(content=system_prompt)] + state["messages"])
     return {"messages": ai_message}

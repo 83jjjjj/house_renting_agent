@@ -4,16 +4,15 @@
 import uuid
 from typing import Annotated, Any
 
-from langchain_core.messages import SystemMessage
-from langchain_core.tools import tool, InjectedToolArg
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import InjectedToolArg, tool
 from langgraph.prebuilt import InjectedStore, ToolNode
-from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
-from src.agent.common.context import ContextSchema
-from src.agent.common.llm import model
-from src.agent.common.store import Reservation, UserPreference
-from src.agent.state.reserve import ReserveState
+from agent.common.llm import model
+from agent.common.store import Reservation, UserPreference
+from agent.state.reserve import ReserveState
+
 
 def get_reserve_house_name(state: ReserveState):
     reserve_house_name = interrupt("请输入你要预定的房源名称：")
@@ -43,7 +42,6 @@ Args:
     reserve_phone: 用户预订电话
     ID_No: 用户身份证号码
     """
-
     order_id = str(uuid.uuid4())
     reservation = Reservation(
         order_id=order_id,
@@ -64,8 +62,6 @@ Args:
 
 create_order = ToolNode([create_order_tool], name="create_order")
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
 
 def call_create_order_tool(state: ReserveState):
     messages = state.get("messages", [])
@@ -76,27 +72,23 @@ def call_create_order_tool(state: ReserveState):
     if last_message and last_message.type == "tool":
         system_prompt = "请根据工具返回的订单结果，以亲切的口吻告知用户订单已成功生成，并提供订单号等信息。"
         ai_message = model.invoke([SystemMessage(content=system_prompt)] + messages)
+        return {"messages": ai_message}
 
-    else:
-        house_name = state.get("reserve_house_name")
-        user_name = state.get("user_name")
-        phone = state.get("reserve_phone")
-        id_no = state.get("user_ID_No")
+    house_name = state.get("reserve_house_name")
+    user_name = state.get("user_name")
+    phone = state.get("reserve_phone")
+    id_no = state.get("user_ID_No")
 
-        instruction = (
-            "我已经提供完所有预订信息，具体如下：\n"
-            f"- 房源名称: {house_name}\n"
-            f"- 入住姓名: {user_name}\n"
-            f"- 预订电话: {phone}\n"
-            f"- 身份证号: {id_no}\n\n"
-            "请立即使用工具帮我下单。"
-        )
+    instruction = (
+        "我已经提供完所有预订信息，具体如下：\n"
+        f"- 房源名称: {house_name}\n"
+        f"- 入住姓名: {user_name}\n"
+        f"- 预订电话: {phone}\n"
+        f"- 身份证号: {id_no}\n\n"
+        "请立即使用工具帮我下单。"
+    )
 
-        model_with_create_order_tool = model.bind_tools([create_order_tool], tool_choice="any")
-
-        # 将构造的人类指令追加在对话最后
-        instruction_msg = HumanMessage(content=instruction)
-        invoke_messages = messages + [HumanMessage(content=instruction)]
-        ai_message = model_with_create_order_tool.invoke(invoke_messages)
-
+    model_with_create_order_tool = model.bind_tools([create_order_tool], tool_choice="any")
+    instruction_msg = HumanMessage(content=instruction)
+    ai_message = model_with_create_order_tool.invoke(messages + [instruction_msg])
     return {"messages": [instruction_msg, ai_message]}

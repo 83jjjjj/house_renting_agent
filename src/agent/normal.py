@@ -1,12 +1,11 @@
 # 常规问答子图的构建与编译
 
 
-from langgraph.constants import START, END
 from langgraph.graph import StateGraph
 
-from src.agent.common.context import ContextSchema
-from src.agent.node.normal import normal_question_and_answer
-from src.agent.state.normal import NormalState
+from agent.common.context import ContextSchema
+from agent.node.normal import normal_question_and_answer
+from agent.state.normal import NormalState
 
 normal_workflow = (
     StateGraph(NormalState, context_schema=ContextSchema)

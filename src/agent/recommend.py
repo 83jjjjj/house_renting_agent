@@ -1,13 +1,20 @@
 # recommend子图的构建和编译
 
+from langgraph.constants import END, START
 from langgraph.graph import StateGraph
-from langgraph.constants import START, END
 
-from src.agent.common.context import ContextSchema
-from src.agent.state.recommend import RecommendState
-
-from src.agent.node.recommend import collect_user_demand, list_tables, get_schema, generate_sql_query, check_sql, \
-    execute_query, integrate_and_output, call_schema_tool
+from agent.common.context import ContextSchema
+from agent.node.recommend import (
+    call_schema_tool,
+    check_sql,
+    collect_user_demand,
+    execute_query,
+    generate_sql_query,
+    get_schema,
+    integrate_and_output,
+    list_tables,
+)
+from agent.state.recommend import RecommendState
 
 recommend_graph = StateGraph(RecommendState, context_schema=ContextSchema)
 

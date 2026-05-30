@@ -9,9 +9,9 @@ from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
-from src.agent.common.context import ContextSchema
-from src.agent.common.llm import model
-from src.agent.state.main import MainState, ReserveOrNot
+from agent.common.context import ContextSchema
+from agent.common.llm import model
+from agent.state.main import MainState, ReserveOrNot
 
 
 # 用于llm的结构化输出用户意图
@@ -59,9 +59,9 @@ def query_mine(state: MainState, runtime: Runtime[ContextSchema], *, store: Base
 
 # 中断询问用户是否需要预订
 def reserve_or_not(state: MainState) -> ReserveOrNot:
-    choice = interrupt(f"请问，是否需要帮助您预订房源？\n"
-                       f"如果需要，请回复'**需要**'。\n"
-                       f"如果不需要，请回复'**不需要**'。\n")
+    choice = interrupt("请问，是否需要帮助您预订房源？\n"
+                       "如果需要，请回复'**需要**'。\n"
+                       "如果不需要，请回复'**不需要**'。\n")
     if choice == "需要":
         return ReserveOrNot(reserve_or_not=True)
     else:

@@ -5,13 +5,12 @@ from typing import Literal
 
 from langgraph.graph import StateGraph
 
-from src.agent.normal import normal_workflow
-from src.agent.recommend import recommend_workflow
-from src.agent.reserve import reserve_workflow
-from src.agent.common.context import ContextSchema
-from src.agent.node.main import determine_user_intent, reserve_or_not, query_mine
-from src.agent.state.main import MainState, ReserveOrNot
-
+from agent.common.context import ContextSchema
+from agent.node.main import determine_user_intent, query_mine, reserve_or_not
+from agent.normal import normal_workflow
+from agent.recommend import recommend_workflow
+from agent.reserve import reserve_workflow
+from agent.state.main import MainState, ReserveOrNot
 
 graph = StateGraph(MainState, context_schema=ContextSchema)
 
