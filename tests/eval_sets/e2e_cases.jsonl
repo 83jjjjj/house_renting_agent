@@ -1,0 +1,4 @@
+{"id":"e2e_001","turns":["帮我推荐北京朝阳区5000以内的主卧","不提供","不需要"],"expected":{"final_route":"recommend","has_recommendation":true,"has_order":false}}
+{"id":"e2e_002","turns":["帮我推荐海淀朝南主卧，预算3000到8000","不提供","需要","阳光公寓","张三","13800000000","110101199001010000"],"expected":{"final_route":"reserve","has_recommendation":true,"has_order":true}}
+{"id":"e2e_003","turns":["我要预订阳光公寓","阳光公寓","李四","13900000000","110101199202020000"],"expected":{"final_route":"reserve","has_order":true}}
+{"id":"e2e_004","turns":["我之前订过哪些房子"],"expected":{"final_route":"mine","uses_store":true}}

@@ -1,0 +1,10 @@
+{"id":"intent_001","input":"帮我推荐北京朝阳区五千以内的主卧","expected":{"intent":"recommend"}}
+{"id":"intent_002","input":"我想找个海淀附近的一居室","expected":{"intent":"recommend"}}
+{"id":"intent_003","input":"有没有朝南带独卫的房子推荐","expected":{"intent":"recommend"}}
+{"id":"intent_004","input":"我要预订阳光公寓","expected":{"intent":"reserve"}}
+{"id":"intent_005","input":"帮我下单刚才推荐的第一套房","expected":{"intent":"reserve"}}
+{"id":"intent_006","input":"我之前预订过哪些房源","expected":{"intent":"mine"}}
+{"id":"intent_007","input":"我的预算偏好是多少","expected":{"intent":"mine"}}
+{"id":"intent_008","input":"北京租房签合同要注意什么","expected":{"intent":"normal"}}
+{"id":"intent_009","input":"租房押一付三是什么意思","expected":{"intent":"normal"}}
+{"id":"intent_010","input":"你能做什么","expected":{"intent":"normal"}}

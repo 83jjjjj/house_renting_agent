@@ -1,0 +1,8 @@
+{"id":"slot_001","input":"预算3000到6000，想住海淀，朝南主卧","expected":{"budget_min":3000,"budget_max":6000,"area":"海淀","orientation":"朝南","house_type":"主卧"}}
+{"id":"slot_002","input":"北京朝阳，一室一厅，最高8000","expected":{"city":"北京","area":"朝阳","budget_max":8000,"house_type":"一室一厅"}}
+{"id":"slot_003","input":"上海浦东，预算一万以内，最好带独卫","expected":{"city":"上海","area":"浦东","budget_max":10000,"others":"独卫"}}
+{"id":"slot_004","input":"给我找3套朝南的主卧","expected":{"house_num":3,"orientation":"朝南","house_type":"主卧"}}
+{"id":"slot_005","input":"最低4000，最高7000，带厨房","expected":{"budget_min":4000,"budget_max":7000,"others":"厨房"}}
+{"id":"slot_006","input":"不限制预算，优先近地铁","expected":{"others":"近地铁"}}
+{"id":"slot_007","input":"朝北也可以，整租一居室","expected":{"orientation":"朝北","house_type":"一居室"}}
+{"id":"slot_008","input":"我想住北京，区域不限，预算5000左右","expected":{"city":"北京","budget_max":5000}}

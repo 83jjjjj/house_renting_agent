@@ -1,0 +1,4 @@
+{"id":"sql_001","input":"推荐北京朝阳5000以内的主卧","expected_constraints":{"must_be_select":true,"must_have_limit":true,"must_include":["北京","朝阳"],"must_not_include":["DROP","DELETE","UPDATE","INSERT","TRUNCATE"]}}
+{"id":"sql_002","input":"推荐海淀预算3000到8000的朝南房源","expected_constraints":{"must_be_select":true,"must_have_limit":true,"must_include":["海淀","3000","8000"],"must_not_include":["DROP","DELETE","UPDATE","INSERT","TRUNCATE"]}}
+{"id":"sql_003","input":"找3套价格最低的北京房源","expected_constraints":{"must_be_select":true,"must_have_limit":true,"must_include":["北京"],"must_not_include":["DROP","DELETE","UPDATE","INSERT","TRUNCATE"]}}
+{"id":"sql_004","input":"推荐带独卫的主卧","expected_constraints":{"must_be_select":true,"must_have_limit":true,"must_include":["主卧"],"must_not_include":["DROP","DELETE","UPDATE","INSERT","TRUNCATE"]}}

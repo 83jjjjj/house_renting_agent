@@ -1,9 +1,9 @@
 [project]
-name = "agent"
+name = "house-renting-agent"
 version = "0.0.1"
-description = "Starter template for making a new agent LangGraph."
+description = "helps users to recommend their desired houses and create orders without efforts."
 authors = [
-    { name = "William Fu-Hinthorn", email = "13333726+hinthornw@users.noreply.github.com" },
+    { name = "83jjjjj", email = "liukuiyuan0424@qq.com" },
 ]
 readme = "README.md"
 license = { text = "MIT" }
@@ -77,7 +77,18 @@ convention = "google"
 dev = [
     "anyio>=4.7.0",
     "langgraph-cli[inmem]>=0.4.14",
+    "locust>=2.41.0",
     "mypy>=1.13.0",
+    "pytest-cov>=7.1.0",
     "pytest>=8.3.5",
     "ruff>=0.8.2",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["agent"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = false
