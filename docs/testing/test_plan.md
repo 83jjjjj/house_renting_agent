@@ -59,6 +59,14 @@ uv run python -m tests.eval_scripts.run_sql_exec_eval
 - 本机不需要安装 `mysql` 命令行客户端；SQL Exec runner 通过项目依赖 `pymysql` 连接 MySQL 服务。
 - 建议使用只读数据库账号和脱敏数据。至少需要有 `houses` 表和与生产一致的字段；如果要评估空结果率、结果约束命中率，数据分布应覆盖北京/上海、朝阳/海淀/浦东、预算区间、整租/合租、朝向、设施等测试集条件。
 
+本项目提供一份本地 SQL Exec fixture：
+
+```bash
+mysql -u <user> -p < tests/fixtures/mysql_houses_seed.sql
+```
+
+如果使用数据库 GUI 或容器内 MySQL，也可以直接执行 `tests/fixtures/mysql_houses_seed.sql`。它会创建生产同构的 `houses` 表，并插入 30 条脱敏样本数据。数据 ID 固定在 `99000000001` 到 `99000000030`，重复导入会先删除这一段 fixture 数据，不影响其他 ID。
+
 输出目录：
 
 ```text

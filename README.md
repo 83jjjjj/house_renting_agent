@@ -104,6 +104,12 @@ uv run python -m tests.eval_scripts.run_e2e_eval
 如果要验证生成 SQL 在真实 MySQL 上是否可执行，先准备一个可连接的测试库或只读账号；本机不需要安装 `mysql` 命令行客户端，项目通过 `pymysql` 连接：
 
 ```bash
+mysql -u <user> -p < tests/fixtures/mysql_houses_seed.sql
+```
+
+如果使用数据库 GUI 或 Docker 内的 MySQL，也可以直接执行 [tests/fixtures/mysql_houses_seed.sql](/home/lky/house_renting_agent/tests/fixtures/mysql_houses_seed.sql)。它会创建生产同构的 `houses` 表，并插入 30 条脱敏评测数据，覆盖当前 SQL 测试集里的城市、区域、预算、朝向、整租/合租、主卧、一居、两居、独卫、厨房、近地铁等条件。
+
+```bash
 uv run python -m tests.eval_scripts.run_sql_exec_eval --max-cases 3
 uv run python -m tests.eval_scripts.run_sql_exec_eval
 ```
