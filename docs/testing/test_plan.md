@@ -102,3 +102,26 @@ SQL Exec 评估在静态 SQL 评估之后运行，使用 `exec_rate`、`db_error
 - `latency_p95_ms` / `latency_p99_ms`：真实查询延迟分位数，样本少时只作为冒烟指标，正式压测要用 Locust。
 
 E2E 评估当前使用 `task_success_rate`、`route_success_rate`、`must_visit_success_rate`、`order_check_success_rate` 和 `store_check_success_rate`。它验证图级业务链路，包括意图路由、补充信息中断、推荐后预约选择、预订信息收集、订单写入 store、查询历史和普通问答。当前 E2E runner 会模拟推荐数据库结果和预订工具调用，不验证真实 SQL 执行；真实数据库可执行率由后续 SQL Exec runner 单独负责。
+
+## 阶段总结
+
+当前测试体系已经覆盖代码确定性、图级链路、LLM 语义能力和真实 SQL 执行四个层面：
+
+- 单元测试：43/43 通过，覆盖率 81.02%，超过当前 75% 门槛。
+- 集成测试：4/4 通过，覆盖主图路由、中断恢复、预订下单和 store 写入。
+- 测试集评估：共 50 条样本，覆盖意图识别、槽位抽取、SQL 约束和 E2E 流程。
+- 意图识别：15/15 通过，Accuracy 100%，Macro F1 100%。
+- 槽位抽取：Field F1 92.93%，Required Match 86.67%，Exact Match 66.67%。
+- SQL 静态评估：10/10 通过，Safety、Constraint、Full Pass 均为 100%。
+- SQL Exec：10/10 通过，Exec Rate 100%，DB Error Rate 0%，Empty Result Rate 0%，Result Constraint Rate 100%，p95 约 2.07ms。
+- E2E：10/10 通过，任务完成、路由、关键节点访问、订单检查和 store 检查均为 100%。
+
+本阶段最有价值的发现是 SQL 评测必须对齐生产数据语义。早期测试数据使用中文枚举，无法暴露 `rooms=1`、`position LIKE '%南%'`、`rent_type='整租'` 这类在生产库中可能查不到结果的问题。对齐生产样例后，prompt、fixture、静态验收和执行验收都改为生产枚举口径，例如 `rooms=one/two/three`、`position=south/north/east/west`、`rent_type=whole_rent`、`devices=toilet/cook/gas`。
+
+## 下一步计划
+
+1. 建立 Locust 压测基线：先保持当前同步实现不变，压测 LangGraph Server 的推荐、预约、查询和普通问答入口，记录 RPS、平均延迟、p95/p99、失败率、LLM 调用耗时和数据库查询耗时。
+2. 明确压测场景配比：建议先使用轻量读场景为主，例如普通问答 30%、推荐 40%、推荐后预约 20%、查询我的 10%；再单独做推荐链路高压测试，因为推荐会触发 LLM 和 SQL。
+3. 增加性能报告目录：建议使用 `reports/load/<timestamp>_<commit>_<scenario>/` 保存 Locust HTML/CSV、压测配置、样本请求和结论摘要，避免只截图无法复现。
+4. 根据压测结果再决定是否异步化：如果瓶颈在 LLM/API 等待，优先评估 async 节点、连接池和限流；如果瓶颈在 MySQL，优先看索引、SQL 查询形态和连接池；如果瓶颈在 LangGraph Server 并发配置，再调整 worker/并发参数。
+5. 准备面试口径：把测试分成单元测试、集成测试、测试集评估、SQL Exec、压测五层，说明每一层解决的问题不同，覆盖率只用于代码路径质量，不用于评价 LLM 语义效果。
