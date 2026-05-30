@@ -44,11 +44,20 @@ uv run python -m tests.eval_scripts.run_sql_eval
 uv run python -m tests.eval_scripts.run_e2e_eval
 ```
 
+SQL Exec 评估需要真实 MySQL 连接，用于验证生成 SQL 在库表上是否可执行、是否返回结果以及基础结果约束是否成立：
+
+```bash
+uv run python -m tests.eval_scripts.run_sql_exec_eval --max-cases 3
+uv run python -m tests.eval_scripts.run_sql_exec_eval
+```
+
 依赖和环境：
 
 - 依赖项：使用项目已有依赖，不额外引入第三方包。
 - 必要环境变量：`DEEPSEEK_API_KEY`。
-- 数据库变量：`DB_USER`、`DB_PASSWORD`、`DB_HOST`、`DB_PORT`、`DB_NAME` 只在后续 SQL 执行率和 E2E 真实链路评估时需要。当前 SQL runner 只做静态安全和约束检查，不连接数据库。
+- 数据库变量：`DB_USER`、`DB_PASSWORD`、`DB_HOST`、`DB_PORT`、`DB_NAME` 只在 SQL Exec 和 E2E 真实数据库链路评估时需要。静态 SQL runner 不连接数据库。
+- 本机不需要安装 `mysql` 命令行客户端；SQL Exec runner 通过项目依赖 `pymysql` 连接 MySQL 服务。
+- 建议使用只读数据库账号和脱敏数据。至少需要有 `houses` 表和与生产一致的字段；如果要评估空结果率、结果约束命中率，数据分布应覆盖北京/上海、朝阳/海淀/浦东、预算区间、整租/合租、朝向、设施等测试集条件。
 
 输出目录：
 
@@ -68,5 +77,13 @@ SQL 评估当前使用 `safety_rate`、`constraint_rate` 和 `full_pass_rate`：
 - `safety_rate`：SQL 必须是只读 SELECT，不包含 DROP/DELETE/UPDATE/INSERT/TRUNCATE/ALTER，并且包含 LIMIT。
 - `constraint_rate`：在安全通过基础上，必须包含测试集定义的关键约束，例如城市、区域、预算。
 - `full_pass_rate`：在关键约束通过基础上，进一步检查 should include，例如朝向、整租、主卧等软约束。
+
+SQL Exec 评估在静态 SQL 评估之后运行，使用 `exec_rate`、`db_error_rate`、`empty_result_rate`、`result_constraint_rate`、`latency_avg_ms`、`latency_p95_ms` 和 `latency_p99_ms`：
+
+- `exec_rate`：通过静态安全检查后，真实数据库执行成功的比例。
+- `db_error_rate`：执行阶段出现 SQL 语法、未知列、连接、超时等错误的比例。
+- `empty_result_rate`：SQL 成功执行但返回 0 行的比例，用于发现测试数据缺失或查询条件过严。
+- `result_constraint_rate`：返回行满足基础结果约束的比例，当前检查 LIMIT、价格边界，以及简单 `LIKE` / `=` 文本谓词。复杂 OR 条件会记录为 `unchecked_constraints`，不强行判错。
+- `latency_p95_ms` / `latency_p99_ms`：真实查询延迟分位数，样本少时只作为冒烟指标，正式压测要用 Locust。
 
 E2E 评估当前使用 `task_success_rate`、`route_success_rate`、`must_visit_success_rate`、`order_check_success_rate` 和 `store_check_success_rate`。它验证图级业务链路，包括意图路由、补充信息中断、推荐后预约选择、预订信息收集、订单写入 store、查询历史和普通问答。当前 E2E runner 会模拟推荐数据库结果和预订工具调用，不验证真实 SQL 执行；真实数据库可执行率由后续 SQL Exec runner 单独负责。

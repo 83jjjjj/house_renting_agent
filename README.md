@@ -101,6 +101,15 @@ uv run python -m tests.eval_scripts.run_e2e_eval
 
 评估结果会写入 `reports/eval/<时间>_<commit>_<评估名>/`，包括 `summary.json`、`cases.jsonl` 和 `failures.jsonl`。槽位抽取还会额外输出 `required_failures.jsonl`，用于区分关键字段漏抽/错抽和仅多抽字段。SQL 评估当前做静态检查，验证只读、危险关键字、LIMIT 和约束包含情况，不连接真实数据库。E2E 评估当前验证图级多轮链路，会模拟推荐数据库结果和预订工具调用，但保留真实 LLM 意图/槽位抽取、真实 interrupt/resume 和 store 写入。报告用于保存每次模型/Prompt/代码调整后的指标和失败样本分析，不提交到 Git。
 
+如果要验证生成 SQL 在真实 MySQL 上是否可执行，先准备一个可连接的测试库或只读账号；本机不需要安装 `mysql` 命令行客户端，项目通过 `pymysql` 连接：
+
+```bash
+uv run python -m tests.eval_scripts.run_sql_exec_eval --max-cases 3
+uv run python -m tests.eval_scripts.run_sql_exec_eval
+```
+
+SQL Exec runner 会先做静态安全检查，只有只读 SELECT 且包含 LIMIT 的 SQL 才会执行。它统计 SQL 可执行率、DB 错误率、空结果率、结果约束命中率和查询延迟。
+
 ## 测试分层
 
 这个项目的测试策略分三层：

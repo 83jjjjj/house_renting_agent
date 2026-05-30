@@ -13,7 +13,9 @@
 - SQL Safe：SQL 安全率，只允许只读 SELECT，并要求 LIMIT。
 - SQL Constraint：SQL 硬约束通过率，在安全通过基础上检查 LIMIT 数值、城市、区域、预算等 must include。
 - SQL Full：SQL 完整约束通过率，在硬约束通过基础上进一步检查 should include 软约束。
-- SQL Exec：SQL 可执行率。
+- SQL Exec：通过静态安全检查后，SQL 在真实 MySQL 上执行成功的比例。
+- SQL Empty Result：SQL 执行成功但返回 0 行的比例，用于发现测试数据缺失或查询条件过严。
+- SQL Result Constraint：SQL 返回行满足基础结果约束的比例，当前检查 LIMIT、价格边界和简单文本谓词；复杂 OR 条件记录为未检查项。
 - E2E Success：端到端任务完成率。
 - p95 Latency：压测 p95 延迟。
 
@@ -63,6 +65,24 @@ SQL 静态评估结果：
 | SQL Safety Rate | 100.00% |
 | SQL Constraint Rate | 100.00% |
 | SQL Full Pass Rate | 80.00% |
+
+SQL Exec 真实数据库执行评估尚未记录正式基线。运行前需要准备可连接 MySQL 服务、只读账号和脱敏 `houses` 数据；本地不需要安装 `mysql` 客户端，runner 使用 `pymysql` 连接。
+
+推荐命令：
+
+```bash
+uv run python -m tests.eval_scripts.run_sql_exec_eval --max-cases 3
+uv run python -m tests.eval_scripts.run_sql_exec_eval
+```
+
+推荐记录字段：
+
+| Metric | Target | Notes |
+|---|---:|---|
+| SQL Exec Rate | >=95% | 语法、字段、连接、超时都算失败 |
+| SQL Empty Result Rate | <=30% | 受测试数据分布影响；若数据覆盖不足，应先补数据而不是调 prompt |
+| SQL Result Constraint Rate | >=90% | 对可检查的返回行做基础约束校验 |
+| SQL p95 Latency | 先记录基线 | 小样本只做冒烟，正式性能看 Locust |
 
 E2E 图级评估结果：
 
