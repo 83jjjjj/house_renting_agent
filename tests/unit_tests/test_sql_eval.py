@@ -2,6 +2,7 @@ from tests.eval_scripts.run_sql_eval import (
     contains_term,
     extract_limit,
     extract_sql_from_response,
+    referenced_columns,
     score_sql,
 )
 
@@ -27,7 +28,7 @@ def test_score_sql_rejects_non_select_statement():
 
 def test_score_sql_checks_limit_and_must_include():
     result = score_sql(
-        "SELECT * FROM houses WHERE city LIKE '%北京%' AND area LIKE '%朝阳%' AND price <= 5000 LIMIT 3",
+        "SELECT * FROM houses WHERE city_name LIKE '%北京%' AND region_name LIKE '%朝阳%' AND price <= 5000 LIMIT 3",
         {
             "must_be_select": True,
             "must_have_limit": True,
@@ -80,3 +81,24 @@ def test_wrong_limit_is_constraint_failure_not_safety_failure():
 def test_contains_term_accepts_sql_aliases():
     assert contains_term("orientation LIKE '%南%'", "朝南")
     assert contains_term("house_type LIKE '%两室一厅%'", "两居")
+
+
+def test_referenced_columns_extracts_select_where_and_order_by():
+    assert referenced_columns(
+        "SELECT id, title FROM houses WHERE city_name LIKE '%北京%' AND price <= 5000 ORDER BY price ASC LIMIT 3"
+    ) == {"id", "title", "city_name", "price"}
+
+
+def test_score_sql_rejects_unknown_columns():
+    result = score_sql(
+        "SELECT id FROM houses WHERE city LIKE '%北京%' AND orientation LIKE '%南%' LIMIT 3",
+        {
+            "must_be_select": True,
+            "must_have_limit": True,
+            "must_not_include": ["DROP", "DELETE"],
+        },
+    )
+
+    assert result["safety_passed"]
+    assert not result["constraint_passed"]
+    assert result["unknown_columns"] == ["city", "orientation"]

@@ -30,19 +30,63 @@ SQL_SCHEMA_CONTEXT = """
 可用的表：houses
 
 houses 表字段：
-- id: 房源 ID
-- title: 房源标题
-- city: 城市
-- area: 区县或商圈
-- price: 月租金，单位元
-- orientation: 朝向
-- house_type: 户型或房间类型
-- rent_type: 租赁方式，例如整租、合租
-- description: 房源描述，可包含独卫、厨房、阳台、近地铁等信息
-- created_at: 发布时间
+- id: 主键id
+- user_id: 房东id
+- title: 标题
+- rent_type: 租房类型，取值如整租、合租
+- floor: 所在楼层
+- all_floor: 总楼层
+- house_type: 户型
+- rooms: 居室
+- position: 朝向
+- area: 面积，单位平方米
+- price: 价格，单位元
+- intro: 房屋介绍，可包含独卫、厨房、阳台、近地铁等信息
+- devices: 设备
+- head_image: 头图
+- images: 房源图
+- city_id: 城市id
+- city_name: 城市名
+- region_id: 区域id
+- region_name: 区域名
+- community_name: 社区名
+- detail_address: 详细地址
+- longitude: 经度
+- latitude: 纬度
+
+常见语义映射：
+- 城市使用 city_name
+- 区域、商圈优先使用 region_name，也可以结合 community_name 或 detail_address
+- 朝向使用 position
+- 独卫、厨房、阳台、近地铁等设施或描述性要求使用 intro 或 devices
 """
 
 DANGEROUS_SQL_KEYWORDS = ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"]
+ALLOWED_SQL_COLUMNS = {
+    "id",
+    "user_id",
+    "title",
+    "rent_type",
+    "floor",
+    "all_floor",
+    "house_type",
+    "rooms",
+    "position",
+    "area",
+    "price",
+    "intro",
+    "devices",
+    "head_image",
+    "images",
+    "city_id",
+    "city_name",
+    "region_id",
+    "region_name",
+    "community_name",
+    "detail_address",
+    "longitude",
+    "latitude",
+}
 SQL_TERM_ALIASES = {
     "朝南": ["朝南", "南"],
     "朝北": ["朝北", "北"],
@@ -98,6 +142,42 @@ def extract_limit(sql: str) -> int | None:
     return int(match.group(1))
 
 
+def referenced_columns(sql: str) -> set[str]:
+    candidates = set()
+    for pattern in [
+        r"\bselect\s+(.*?)\s+from\b",
+        r"\bwhere\s+(.*?)(?:\border\s+by\b|\blimit\b|$)",
+        r"\border\s+by\s+(.*?)(?:\blimit\b|$)",
+    ]:
+        for match in re.finditer(pattern, sql, flags=re.IGNORECASE):
+            candidates.update(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", match.group(1)))
+
+    sql_keywords = {
+        "and",
+        "or",
+        "not",
+        "like",
+        "between",
+        "in",
+        "is",
+        "null",
+        "asc",
+        "desc",
+        "as",
+        "distinct",
+        "count",
+        "min",
+        "max",
+        "avg",
+        "sum",
+    }
+    return {
+        candidate.lower()
+        for candidate in candidates
+        if candidate.lower() not in sql_keywords and candidate != "*"
+    }
+
+
 def score_sql(sql: str, constraints: dict) -> dict:
     normalized = normalize_sql(sql)
     upper_sql = normalized.upper()
@@ -135,9 +215,14 @@ def score_sql(sql: str, constraints: dict) -> dict:
     if found_forbidden:
         failures.append("must_not_include")
 
+    columns = referenced_columns(normalized)
+    unknown_columns = sorted(columns - ALLOWED_SQL_COLUMNS - {"houses"})
+    if unknown_columns:
+        failures.append("unknown_columns")
+
     # 只读安全必须严格通过；limit 数值和 should_include 属于约束质量，不属于安全性。
     safety_passed = not {"must_be_select", "must_have_limit", "must_not_include"} & set(failures)
-    constraint_passed = safety_passed and "limit" not in failures and not missing_must_include
+    constraint_passed = safety_passed and "limit" not in failures and not missing_must_include and not unknown_columns
     full_passed = constraint_passed and not missing_should_include
 
     return {
@@ -148,6 +233,8 @@ def score_sql(sql: str, constraints: dict) -> dict:
         "missing_must_include": missing_must_include,
         "missing_should_include": missing_should_include,
         "found_forbidden": found_forbidden,
+        "referenced_columns": sorted(columns),
+        "unknown_columns": unknown_columns,
         "failures": failures,
         "safety_passed": safety_passed,
         "constraint_passed": constraint_passed,
