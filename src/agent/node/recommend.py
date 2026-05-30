@@ -85,6 +85,37 @@ def extract_user_demand_fields(user_message: HumanMessage | str):
     return extract_user_demands(user_message).model_dump(exclude_none=True)
 
 
+def build_sql_query_system_prompt(user_preferences: dict) -> str:
+    city = user_preferences["city"]
+    area = user_preferences["area"]
+    budget_min = user_preferences["budget_min"]
+    budget_max = user_preferences["budget_max"]
+    max_row = user_preferences["house_num"]
+
+    return f"""
+你是一个专业的 SQL 生成引擎。请根据对话历史中提供的数据库 Schema 以及当前的用户租房需求信息，生成一条标准的 MySQL SELECT 查询语句，来获取符合用户需求的房源集合。
+用户提供的租房需求信息：用户想要在{city}{area}租房，预算范围为{budget_min}到{budget_max}。
+更多需求信息从历史对话获取。
+
+### 核心指令
+1. **仅输出 SQL**：直接返回 SQL 字符串，严禁包含 Markdown 格式（如 ```sql）、注释、换行符或任何解释性文字。
+2. **严格遵循 Schema**：只能使用历史消息中已定义的表名和字段名，绝对禁止臆造不存在的列。
+3. **逻辑映射规范**：
+   - **数值范围**：处理预算时，正确使用 `>=`、`<=` 或 `BETWEEN`。
+   - **模糊匹配**：对城市、区域、朝向等文本字段，统一使用 `LIKE '%关键词%'` 以确保召回率。
+4. **安全性与限制**：
+   - 必须包含 `LIMIT` 子句（默认为 {max_row}），防止一次性拉取过多数据。
+   - 默认按价格升序 (`price ASC`) 或发布时间降序 (`id DESC`) 排序。
+
+### 目标
+输出一条语法正确、逻辑严密且可直接在 MySQL 中执行的 SELECT 语句。
+
+### 示例
+历史对话中，用户提到要在北京海淀租房，应当生成一条如下格式的sql语句：
+select [所需字段] from 房源表 where city = '北京' and region_name = '海淀' and [其余偏好条件]; 
+    """
+
+
 @lru_cache(maxsize=1)
 def get_sql_tools():
     """Create SQL tools lazily so graph imports do not require a live database."""
@@ -198,36 +229,7 @@ def get_schema(state: RecommendState):
 
 # sql查询语句生成
 def generate_sql_query(state: RecommendState):
-    # 系统提示词由千问ai生成
-    city = state["user_preferences"]["city"]
-    area = state["user_preferences"]["area"]
-    budget_min = state["user_preferences"]["budget_min"]
-    budget_max = state["user_preferences"]["budget_max"]
-    max_row = state["user_preferences"]["house_num"]
-
-    generate_sql_query_system_prompt = f"""
-你是一个专业的 SQL 生成引擎。请根据对话历史中提供的数据库 Schema 以及当前的用户租房需求信息，生成一条标准的 MySQL SELECT 查询语句，来获取符合用户需求的房源集合。
-用户提供的租房需求信息：用户想要在{city}{area}租房，预算范围为{budget_min}到{budget_max}。
-更多需求信息从历史对话获取。
-
-### 核心指令
-1. **仅输出 SQL**：直接返回 SQL 字符串，严禁包含 Markdown 格式（如 ```sql）、注释、换行符或任何解释性文字。
-2. **严格遵循 Schema**：只能使用历史消息中已定义的表名和字段名，绝对禁止臆造不存在的列。
-3. **逻辑映射规范**：
-   - **数值范围**：处理预算时，正确使用 `>=`、`<=` 或 `BETWEEN`。
-   - **模糊匹配**：对城市、区域、朝向等文本字段，统一使用 `LIKE '%关键词%'` 以确保召回率。
-4. **安全性与限制**：
-   - 必须包含 `LIMIT` 子句（默认为 {max_row}），防止一次性拉取过多数据。
-   - 默认按价格升序 (`price ASC`) 或发布时间降序 (`id DESC`) 排序。
-
-### 目标
-输出一条语法正确、逻辑严密且可直接在 MySQL 中执行的 SELECT 语句。
-
-### 示例
-历史对话中，用户提到要在北京海淀租房，应当生成一条如下格式的sql语句：
-select [所需字段] from 房源表 where city = '北京' and region_name = '海淀' and [其余偏好条件]; 
-    """
-    system_prompt = generate_sql_query_system_prompt
+    system_prompt = build_sql_query_system_prompt(state["user_preferences"])
     query_tool = get_sql_tools()["sql_db_query"]
     model_with_query_tool = model.bind_tools([query_tool], tool_choice=True)
     # 上一条消息是获取到schema的toolmessage
