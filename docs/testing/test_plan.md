@@ -57,4 +57,6 @@ reports/eval/<timestamp>_<commit>_<eval-name>/
   failures.jsonl  # 失败样本，便于回归分析
 ```
 
-意图识别使用 `accuracy` 和 `macro_f1`；槽位抽取使用 `field_precision`、`field_recall`、`field_f1` 和整条样本 `exact_match_rate`。覆盖率不用于评估模型效果，只用于评估单元测试对代码路径的覆盖程度。
+意图识别使用 `accuracy` 和 `macro_f1`。如果只用 `--max-cases` 做 smoke 测试，样本可能只覆盖部分类别，此时主要看 `accuracy` 和脚本是否能连通；正式记录指标时应跑完整测试集，并参考 `per_label` 和混淆矩阵。
+
+槽位抽取使用 `field_precision`、`field_recall`、`field_f1`、整条样本 `exact_match_rate` 和 `required_fields_match_rate`。`exact_match_rate` 会惩罚多抽字段，`required_fields_match_rate` 更关注 expected 里的关键字段是否全部抽对。覆盖率不用于评估模型效果，只用于评估单元测试对代码路径的覆盖程度。

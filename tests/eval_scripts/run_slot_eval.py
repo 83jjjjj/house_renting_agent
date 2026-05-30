@@ -42,6 +42,7 @@ def score_case(expected: dict, actual: dict):
         "tp": len(matched_fields),
         "fp": len(false_positive_fields) + len(wrong_fields),
         "fn": len(false_negative_fields),
+        "required_fields_passed": not false_negative_fields and not wrong_fields,
         "exact_match": not false_positive_fields and not false_negative_fields and not wrong_fields,
     }
 
@@ -57,6 +58,7 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
     total_fp = 0
     total_fn = 0
     exact_match_count = 0
+    required_match_count = 0
 
     for case in cases:
         expected = case["expected"]
@@ -72,6 +74,7 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
         total_fp += scores["fp"]
         total_fn += scores["fn"]
         exact_match_count += int(scores["exact_match"])
+        required_match_count += int(scores["required_fields_passed"])
 
         row = {
             "id": case["id"],
@@ -97,6 +100,8 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
         {
             "exact_match": exact_match_count,
             "exact_match_rate": exact_match_count / len(rows) if rows else 0.0,
+            "required_fields_match": required_match_count,
+            "required_fields_match_rate": required_match_count / len(rows) if rows else 0.0,
             "field_precision": precision,
             "field_recall": recall,
             "field_f1": f1,
@@ -109,7 +114,17 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
     write_json(report_dir / "summary.json", summary)
     write_jsonl(report_dir / "cases.jsonl", rows)
     write_jsonl(report_dir / "failures.jsonl", failures)
-    logger.info("slot eval: %s/%s exact matches", exact_match_count, len(rows))
+    write_jsonl(
+        report_dir / "required_failures.jsonl",
+        (row for row in rows if not row["required_fields_passed"]),
+    )
+    logger.info(
+        "slot eval: %s/%s strict exact matches, %s/%s required-field matches",
+        exact_match_count,
+        len(rows),
+        required_match_count,
+        len(rows),
+    )
     logger.info(
         "field_precision: %.4f, field_recall: %.4f, field_f1: %.4f",
         precision,

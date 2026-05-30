@@ -20,8 +20,8 @@ LABELS = ["recommend", "reserve", "mine", "normal"]
 logger = logging.getLogger(__name__)
 
 
-def macro_f1(confusion: dict[str, Counter]) -> float:
-    scores = []
+def per_label_metrics(confusion: dict[str, Counter]) -> dict[str, dict]:
+    metrics = {}
     for label in LABELS:
         tp = confusion[label][label]
         fp = sum(confusion[other][label] for other in LABELS if other != label)
@@ -29,8 +29,27 @@ def macro_f1(confusion: dict[str, Counter]) -> float:
         precision = tp / (tp + fp) if tp + fp else 0.0
         recall = tp / (tp + fn) if tp + fn else 0.0
         score = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-        scores.append(score)
-    return sum(scores) / len(scores)
+        support = sum(confusion[label].values())
+        predicted = sum(confusion[other][label] for other in LABELS)
+        metrics[label] = {
+            "precision": precision,
+            "recall": recall,
+            "f1": score,
+            "support": support,
+            "predicted": predicted,
+        }
+    return metrics
+
+
+def macro_f1(label_metrics: dict[str, dict], *, observed_only: bool) -> float:
+    selected = [
+        values
+        for values in label_metrics.values()
+        if not observed_only or values["support"] or values["predicted"]
+    ]
+    if not selected:
+        return 0.0
+    return sum(values["f1"] for values in selected) / len(selected)
 
 
 def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
@@ -68,13 +87,19 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
             failures.append(row)
 
     passed_count = sum(row["passed"] for row in rows)
+    label_metrics = per_label_metrics(confusion)
+    macro_f1_observed = macro_f1(label_metrics, observed_only=True)
+    macro_f1_all = macro_f1(label_metrics, observed_only=False)
     summary = base_summary(EVAL_NAME, case_file, len(rows))
     summary.update(
         {
             "passed": passed_count,
             "failed": len(rows) - passed_count,
             "accuracy": passed_count / len(rows) if rows else 0.0,
-            "macro_f1": macro_f1(confusion),
+            "macro_f1": macro_f1_observed,
+            "macro_f1_observed_labels": macro_f1_observed,
+            "macro_f1_all_labels": macro_f1_all,
+            "per_label": label_metrics,
             "confusion_matrix": {
                 label: {pred: confusion[label][pred] for pred in sorted(confusion[label])}
                 for label in LABELS
@@ -87,6 +112,8 @@ def run_eval(case_file: Path, output: Path | None, max_cases: int | None):
     write_jsonl(report_dir / "failures.jsonl", failures)
     logger.info("intent eval: %s/%s passed", passed_count, len(rows))
     logger.info("accuracy: %.4f, macro_f1: %.4f", summary["accuracy"], summary["macro_f1"])
+    if summary["macro_f1"] != summary["macro_f1_all_labels"]:
+        logger.info("macro_f1_all_labels: %.4f", summary["macro_f1_all_labels"])
     logger.info("report: %s", report_dir)
 
 
