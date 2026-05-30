@@ -3,7 +3,7 @@
 
 from typing import Literal
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.runtime import Runtime
 from langgraph.store.base import BaseStore
 from langgraph.types import interrupt
@@ -20,11 +20,25 @@ class UserIntent(BaseModel):
 
     intent: Literal["recommend", "reserve", "mine", "normal"] = Field(..., description="用户意图只能是推荐房源、预订房源、查询我的和常规问答中的一种")
 
+
+USER_INTENT_SYSTEM_PROMPT = (
+    "你是能通过理解语义来识别用户意图的专家。"
+    "请根据用户消息，判别用户意图。"
+)
+
+
+def extract_user_intent(user_message: HumanMessage | str) -> UserIntent:
+    if isinstance(user_message, str):
+        user_message = HumanMessage(content=user_message)
+
+    return model.with_structured_output(UserIntent, method="function_calling").invoke(
+        [SystemMessage(content=USER_INTENT_SYSTEM_PROMPT), user_message]
+    )
+
+
 # 识别用户意图，进行请求路由
 def determine_user_intent(state: MainState):
-    user_intent_system_prompt = ("你是能通过理解语义来识别用户意图的专家。"
-                                 "请根据用户消息，判别用户意图。")
-    user_intent = model.with_structured_output(UserIntent, method="function_calling").invoke([SystemMessage(content=user_intent_system_prompt), state["messages"][-1]])
+    user_intent = extract_user_intent(state["messages"][-1])
     return {"user_intent": user_intent.intent}
 
 # 查询用户历史
@@ -66,4 +80,3 @@ def reserve_or_not(state: MainState) -> ReserveOrNot:
         return ReserveOrNot(reserve_or_not=True)
     else:
         return ReserveOrNot(reserve_or_not=False)
-

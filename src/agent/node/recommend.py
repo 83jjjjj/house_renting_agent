@@ -56,6 +56,22 @@ preferences_dict = {
 }
 
 
+EXTRACT_DEMANDS_SYSTEM_PROMPT = "从以下提供的用户消息里，提取用户的租房偏好信息，没找到就给None，不可瞎猜或无中生有。\n"
+
+
+def extract_user_demands(user_message: HumanMessage | str) -> Demands:
+    if isinstance(user_message, str):
+        user_message = HumanMessage(content=user_message)
+
+    return model.with_structured_output(Demands, method="function_calling").invoke(
+        [SystemMessage(content=EXTRACT_DEMANDS_SYSTEM_PROMPT), user_message]
+    )
+
+
+def extract_user_demand_fields(user_message: HumanMessage | str):
+    return extract_user_demands(user_message).model_dump(exclude_none=True)
+
+
 @lru_cache(maxsize=1)
 def get_sql_tools():
     """Create SQL tools lazily so graph imports do not require a live database."""
@@ -98,18 +114,9 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
         demands = Demands(**history_preferences_value)
     else:
         demands = Demands()
-    # 如果用户问话里有需求信息，尝试提取
-    def info_extractor(user_message: HumanMessage):
-        extract_info_sys_prompt = "从以下提供的用户消息里，提取用户的租房偏好信息，没找到就给None，不可瞎猜或无中生有。\n"
-        extracted_preferences = model.with_structured_output(Demands, method="function_calling").invoke([
-            SystemMessage(content=extract_info_sys_prompt),
-            user_message
-        ])
-        # 一定要去掉None，否则update时会覆盖旧值为None
-        return extracted_preferences.model_dump(exclude_none=True)
-
     final_demands = demands.model_dump()
-    final_demands.update(info_extractor(state["messages"][-1]))
+    # 一定要去掉None，否则update时会覆盖旧值为None
+    final_demands.update(extract_user_demand_fields(state["messages"][-1]))
     # 如果需求信息不足，走中断，仍不足取默认值
     missing_info_list = []
     for pref in preferences_dict:
@@ -118,7 +125,7 @@ def collect_user_demand(state: RecommendState, runtime: Runtime[ContextSchema], 
     if missing_info_list:
         user_input = interrupt(f"为了提供更精准的服务，请提供以下关键信息：{missing_info_list}。您也可以选择‘不提供’，将开启默认服务")
         if user_input != "不提供":
-            new_demands = info_extractor(HumanMessage(content=user_input))
+            new_demands = extract_user_demand_fields(HumanMessage(content=user_input))
             final_demands.update(new_demands)
 
     for info in final_demands:
