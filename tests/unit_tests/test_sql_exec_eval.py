@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from tests.eval_scripts.run_sql_exec_eval import (
+    case_passed,
     check_result_constraints,
     execution_safety_failures,
     extract_price_bounds,
@@ -45,6 +46,20 @@ def test_check_result_constraints_passes_matching_rows():
     assert result["result_constraints_passed"]
     assert result["row_count"] == 2
     assert result["failures"] == []
+
+
+def test_sql_exec_case_requires_static_constraints():
+    assert not case_passed(
+        {"safety_passed": True, "constraint_passed": False},
+        {"passed": True},
+        {"result_constraints_passed": True},
+    )
+
+    assert case_passed(
+        {"safety_passed": True, "constraint_passed": True},
+        {"passed": True},
+        {"result_constraints_passed": True},
+    )
 
 
 def test_check_result_constraints_accepts_production_enum_values():

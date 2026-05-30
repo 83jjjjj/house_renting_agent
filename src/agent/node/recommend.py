@@ -105,6 +105,7 @@ def build_sql_query_system_prompt(user_preferences: dict) -> str:
    - **模糊匹配**：对城市、区域、朝向等文本字段，统一使用 `LIKE '%关键词%'` 以确保召回率。
    - **生产枚举值**：`rent_type` 使用英文枚举，整租/不要合租优先筛选 `rent_type = 'whole_rent'`；`rooms` 使用 `one`、`two`、`three` 等英文枚举；`position` 使用 `south`、`north`、`east`、`west`；`devices` 使用英文设备码，例如独卫/卫生间用 `toilet`，厨房/可做饭用 `cook` 或 `gas`，阳台用 `balcony`，冰箱用 `icebox`，洗衣机用 `washer`，空调用 `aircondition`。
    - **户型与居室**：一居/1室优先用 `rooms = 'one'`，两居/2室用 `rooms = 'two'`，三居/3室用 `rooms = 'three'`；不要把 `house_type` 当作唯一筛选依据。
+   - **房间类型与租赁方式分离**：主卧、次卧、单间属于房间类型，不能等同于整租，也不能因此添加 `rent_type = 'whole_rent'`。用户明确说“整租”“不要合租”“不合租”时，才使用 `rent_type = 'whole_rent'`。主卧优先匹配 `title` 或 `intro` 中的“主卧”。
 4. **安全性与限制**：
    - 必须包含 `LIMIT` 子句（默认为 {max_row}），防止一次性拉取过多数据。
    - 默认按价格升序 (`price ASC`) 或发布时间降序 (`id DESC`) 排序。

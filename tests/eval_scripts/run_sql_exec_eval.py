@@ -265,6 +265,14 @@ def check_result_constraints(rows: list[dict], sql: str) -> dict:
     }
 
 
+def case_passed(static_scores: dict, execution: dict, result_checks: dict) -> bool:
+    return (
+        static_scores["constraint_passed"]
+        and execution["passed"]
+        and result_checks["result_constraints_passed"]
+    )
+
+
 def connect_database(connect_timeout: int, read_timeout: int):
     return pymysql.connect(
         host=os.getenv("DB_HOST"),
@@ -390,9 +398,7 @@ def run_eval(
                 "static_scores": scores,
                 "execution": execution,
                 "result_checks": result_checks,
-                "passed": scores["safety_passed"]
-                and execution["passed"]
-                and result_checks["result_constraints_passed"],
+                "passed": case_passed(scores, execution, result_checks),
                 "tags": case.get("tags", []),
                 "difficulty": case.get("difficulty"),
             }
